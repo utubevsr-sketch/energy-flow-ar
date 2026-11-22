@@ -139,6 +139,7 @@ vec3 colorSmooth(float k){
 
 // Spin rule: every swirl turns ANTICLOCKWISE as seen by you looking toward the source (rotation about the
 // direction of travel, toward you), and the vortex on the surface anticlockwise as seen from the room.
+// The swirl around your body (and anything circling the body) keeps its original turn: clockwise seen from above.
 // Where a particle is at time t. u runs 0..1 along its life: the first 15% spirals across the surface into the
 // funnel mouth, the rest rides the funnel to you, spinning faster as the funnel narrows (angular momentum).
 const FLOW_POS = /* glsl */`
@@ -1038,7 +1039,7 @@ const arrivalMesh = new THREE.Mesh(arrivalGeo, new THREE.ShaderMaterial({
       float k = smoothstep(0.03, 0.45, s);
       float r = mix(0.12, 0.5 + 1.5 * fract(aB.z * 3.7), k) + max(0., s - 0.6) * 1.6;
       float y = mix(uChest.y, mix(0.05, uBody.y + 0.45, aA.w), smoothstep(0.03, 0.5, s)) + max(0., s - 0.6) * 0.4;
-      float ang = base + aA.y * k - s * 3.2 - uTime * 0.15;
+      float ang = base + aA.y * k + s * 3.2 + uTime * 0.15; // body swirl: keeps its original direction (clockwise seen from above)
       vec3 swirl = vec3(uBody.x + cos(ang) * r, y, uBody.z + sin(ang) * r);
       vis = smoothstep(0., 0.02, s) * (1. - smoothstep(0.65, 1., s));
       return mix(through, swirl, smoothstep(0.05, 0.22, s));
