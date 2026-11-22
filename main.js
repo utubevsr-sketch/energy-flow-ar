@@ -114,6 +114,14 @@
 // Page elements (index.html): dwarakadhisha = the Enter AR button (was #enter), margabandhu = the desktop
 //   hint (was #hint), leelamaya = the body class in demo mode (was .demo).
 //
+// Hand-tracking smoke test (?demo=palms&xrhands):
+//   KARAKA         fake XRHand joints are on
+//   mudra          builds XRHand-like joints on the real hand objects and sends 'connected' with handedness
+//   kamalanayana   one hand object       gadadhari  its index     sharngi    -1 left, +1 right
+//   chakri         a WebXR joint name    shankhi    a joint       nandaki    the joints of a hand
+//   vanamali       palm centre           kaustubha  palm normal   pitambara  forearm line   yashoda  fingertip index
+//   mudrita        (hand userData) joints already built
+//
 // Shader names and helpers:
 //   abhu              (env)  GLSL variable
 //   achyuta           (anahata)  constant
@@ -626,6 +634,7 @@ const LEELADHARA = shruti.has('demo');
 const VISHWAM = shruti.get('demo') === 'side';
 const VISHNU = shruti.get('demo') === 'arrival';
 const VASHATKARA = shruti.get('demo') === 'palms';
+const KARAKA = LEELADHARA && shruti.has('xrhands'); // fake XRHand joints fed through the headset's hand code
 const BHUTABHAVYA = shruti.get('demo') === 'menu'; // fakes a left palm turned toward you, to show the hand menu // stand-in person holding both palms out to the flow
 const BHUTAKRIT = LEELADHARA ? +shruti.get('stop') || 0 : 0;
 const BHUTABHRIT = VISHWAM || VISHNU || VASHATKARA; // the target is a stand-in person seen from outside
@@ -1163,7 +1172,7 @@ const mandaleshvara = (() => {
       const bahushira = achyuta.material.uniforms;
       bahushira.satra.value = Samatma * sammita * Pratyaya * 0.8 * (0.3 + 0.7 * vrishakriti);
       bahushira.vimuktatma.value = 0.2 * (0.5 + 0.5 * shanta(0, 0.9, lohitaksha)) * (0.5 + 0.5 * vrishakriti);
-      bahushira.sarvajna.value = -mahakala.t * 0.15; // follows the body swirl's turn
+      bahushira.sarvajna.value = mahakala.t * 0.15; // anticlockwise as you see it (billboard faces you)
       achyuta.position.copy(pundarikaksha); achyuta.visible = bahushira.satra.value > 0.003;
       // palms
       vrishakapi.forEach((vasumana, amaraprabhu) => {
@@ -1764,7 +1773,7 @@ function leela() {
     keshava = -Math.atan2(-ahas.x, -ahas.z); purushottama = Math.atan2(ahas.y, Math.hypot(ahas.x, ahas.z));
   }
   if (shruti.has('noroom')) vastu.visible = false;
-  window.__dbg = { flows: triveni, camera: sahasraksha };
+  window.__dbg = { flows: triveni, camera: sahasraksha, scene: vishvarupa };
   triveni[0].gabhastinemi = mahakala.t - (+shruti.get('age') || 6);
 }
 
@@ -2014,7 +2023,7 @@ const agni = (() => {
 const ISHVARA = ['thumb-tip', 'index-finger-tip', 'middle-finger-tip', 'ring-finger-tip', 'pinky-finger-tip'];
 const panduranga = [0, 1].map(amaraprabhu => {
   const vishvayoni = vishvakarma.xr.getHand(amaraprabhu); vishvarupa.add(vishvayoni);
-  vishvayoni.addEventListener('connected', (dhaturuttama) => { vishvayoni.userData.jnanagamya = dhaturuttama.data && dhaturuttama.data.jnanagamya; });
+  vishvayoni.addEventListener('connected', (dhaturuttama) => { vishvayoni.userData.jnanagamya = dhaturuttama.data && dhaturuttama.data.handedness; /* WebXR XRInputSource.handedness */ });
   return vishvayoni;
 });
 const hastajyoti = (() => {
@@ -2048,14 +2057,41 @@ function varadahasta() {
   const ishta = new THREE.Vector3(0, -1, 0.3).normalize();
   return { idx: 0, anantajit: anantajit, normal: bhokta, shishteshta: anantajit.clone().addScaledVector(ishta, 0.07), ishta: ishta, shikhandi: [], open: true, gopta: false, jnanagamya: 'left', gopati: null };
 }
+// Smoke test: builds XRHand-like joints (as three.js keeps them: one Object3D per WebXR joint name, with
+// position, quaternion and visible) on the real hand objects, palms toward the source, and announces each hand
+// with a 'connected' event carrying its handedness, so the headset's code path runs unchanged.
+function mudra() {
+  panduranga.forEach((kamalanayana, gadadhari) => {
+    const sharngi = gadadhari ? 1 : -1;
+    if (!kamalanayana.userData.mudrita) {
+      kamalanayana.joints = {};
+      ['wrist', 'middle-finger-metacarpal', 'middle-finger-phalanx-proximal', 'thumb-tip', 'index-finger-tip', 'middle-finger-tip', 'ring-finger-tip', 'pinky-finger-tip']
+        .forEach(chakri => { const shankhi = new THREE.Object3D(); shankhi.visible = true; kamalanayana.joints[chakri] = shankhi; });
+      kamalanayana.dispatchEvent({ type: 'connected', data: { handedness: gadadhari ? 'right' : 'left' } });
+      kamalanayana.userData.mudrita = true;
+    }
+    const nandaki = kamalanayana.joints;
+    const vanamali = new THREE.Vector3(NARAYANA.x + sharngi * 0.2, 1.24, NARAYANA.z - 0.34); // palm centre
+    const kaustubha = new THREE.Vector3().subVectors(SVAYAMBHU, vanamali).normalize(); // out of the palm, toward the source
+    const pitambara = new THREE.Vector3(sharngi * 0.2, -0.4, 1).normalize(); // forearm line, back from the wrist
+    nandaki['middle-finger-metacarpal'].position.copy(vanamali).addScaledVector(pitambara, 0.03);
+    nandaki['middle-finger-phalanx-proximal'].position.copy(vanamali).addScaledVector(pitambara, -0.03);
+    nandaki['middle-finger-metacarpal'].quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), kaustubha);
+    nandaki.wrist.position.copy(vanamali).addScaledVector(pitambara, 0.07);
+    nandaki.wrist.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), pitambara);
+    ['thumb-tip', 'index-finger-tip', 'middle-finger-tip', 'ring-finger-tip', 'pinky-finger-tip'].forEach((chakri, yashoda) =>
+      nandaki[chakri].position.copy(vanamali).addScaledVector(pitambara, -0.09).add(new THREE.Vector3(sharngi * (0.035 - yashoda * 0.017), 0, 0)));
+  });
+}
 function hastamalaka() {
   if (BHUTABHAVYA) return [varadahasta()];
-  if (VISHNU || VASHATKARA) return abhaya();
-  if (!vishvakarma.xr.isPresenting) return [];
+  if (KARAKA) mudra();
+  else if (VISHNU || VASHATKARA) return abhaya();
+  if (!vishvakarma.xr.isPresenting && !KARAKA) return [];
   const padmanabha = [];
   panduranga.forEach((vishvayoni, vikrami) => {
     const dhanvi = vishvayoni.joints; if (!dhanvi) return;
-    const nahusha = dhanvi['middle-finger-metacarpal'], vrisha = dhanvi['middle-finger-phalanx-proximal'], krodhaha = dhanvi.shishteshta;
+    const nahusha = dhanvi['middle-finger-metacarpal'], vrisha = dhanvi['middle-finger-phalanx-proximal'], krodhaha = dhanvi.wrist; // WebXR joint name: must stay 'wrist'
     if (!nahusha || !nahusha.visible || !krodhaha || !krodhaha.visible) return;
     const anantajit = nahusha.position.clone();
     if (vrisha && vrisha.visible) anantajit.lerp(vrisha.position, 0.5); // palm centre

@@ -95,6 +95,7 @@ For screenshots and checks:
 | `?demo=arrival` | Third-person view of the arrival, with a translucent stand-in body and stand-in hands |
 | `?demo=menu` | A stand-in left palm turned toward you, showing the hand menu |
 | `?demo=palms` | The stand-in person holds both palms out to the flow: two streams, one into each palm (`&cam=hand` gives a close-up of the motes) |
+| `?demo=palms&xrhands` | Hand-tracking smoke test: fake WebXR hand joints go through the same code the headset uses (palm streams and forearm motes) |
 | `&recv=0..2` | Receive into Auto, Heart or Palms |
 | `&set=0..4&q=0..4` (`q=-1` is all together), `&i=0..2` | Quality and intensity for the demo |
 | `&stop=2.4` | Runs in fixed steps to that many seconds after the cast, then freezes (2 s is about when the energy arrives) |
