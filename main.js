@@ -136,6 +136,8 @@ vec3 colorSmooth(float k){
   return mix(uColors[clamp(i, 0, 4)], uColors[clamp(j, 0, 4)], smoothstep(0.25, 0.75, fract(x)));
 }`;
 
+// Spin rule: every swirl turns ANTICLOCKWISE as seen by you looking toward the source (rotation about the
+// direction of travel, toward you), and the vortex on the surface anticlockwise as seen from the room.
 // Where a particle is at time t. u runs 0..1 along its life: the first 15% spirals across the surface into the
 // funnel mouth, the rest rides the funnel to you, spinning faster as the funnel narrows (angular momentum).
 const FLOW_POS = /* glsl */`
@@ -146,7 +148,7 @@ vec3 flowPos(float phase, float t, float rf, float a0, float spd, float seed, ou
     float rd = uRdisk * (0.3 + 0.7 * fract(seed * 7.13));
     float Rm = mix(rd, uRsrc, s);
     float r = Rm * mix(1., rf, s);
-    float ang = a0 + t * 0.6 + uTwist * (1.5 / (Rm + 0.05) + 3. * pow(1. - s, 1.5)); // extra turn that unwinds by the mouth
+    float ang = a0 + t * 0.6 + uTwist * (1.5 / (Rm + 0.05) - 3. * pow(1. - s, 1.5)); // extra turn, gained as it spirals in
     vec3 B2 = normalize(cross(bezT(0.), uPN));
     float k = smoothstep(0.35, 1., s);
     vec3 dir = normalize(mix(uE1 * cos(ang) + uE2 * sin(ang), uPN * cos(ang) + B2 * sin(ang), k) + vec3(1e-5));
@@ -332,8 +334,8 @@ function diskMat(u) {
     fragmentShader: NOISE + FLOW + /* glsl */`
       varying vec2 vXY;
       float pat(float th, float r, float ph){
-        float a = th + ph;
-        float arms = pow(0.5 + 0.5 * cos(3. * a - 5. * log(r + 0.02)), 2.5);
+        float a = th - ph;
+        float arms = pow(0.5 + 0.5 * cos(3. * a + 5. * log(r + 0.02)), 2.5);
         float n = fbmP(vec2(a / TAU * 8., log(r + 0.02) * 3.), 8.);
         return arms * (0.35 + 1.2 * n) + 0.3 * n;
       }
@@ -423,6 +425,8 @@ class Flow {
   constructor(S, n, qualities, intensity) {
     const it = INTENSITIES[intensity];
     this.S = S.clone(); this.n = n.clone().normalize();
+    // The swirl frame is built around the normal: keep it facing you, so the vortex turns anticlockwise as you see it.
+    if (this.n.dot(_tv.subVectors(chest, S)) < 0) this.n.negate();
     this.born = clockNow.t; this.dying = false; this.fade = 1; this.arrived = false;
     const ref = Math.abs(this.n.y) < 0.9 ? UP : new THREE.Vector3(1, 0, 0);
     const E1 = new THREE.Vector3().crossVectors(this.n, ref).normalize();
@@ -933,7 +937,6 @@ enterBtn.addEventListener('click', async () => {
 
 // ---------- demo (for screenshots) ----------
 function startDemo() {
-  window.__flows = flows; // for automated checks
   const p = DEMO_SRC.clone(), n = new THREE.Vector3(0, 0, 1);
   if (DEMO_PALMS && params.get('cam') === 'hand') { // close-up of the right hand drawing motes in
     camera.position.set(0.62, 1.42, 0.02); yaw = -2.1; pitch = -0.45;
@@ -951,6 +954,14 @@ function startDemo() {
   if (params.has('recv')) state.recv = Math.min(2, Math.max(0, +params.get('recv')));
   if (params.has('i')) state.intensity = Math.min(2, Math.max(0, +params.get('i')));
   castFlow(p, n);
+  // &cam=src: stand where the energy arrives and look straight at the source (used to verify the spin direction)
+  if (params.get('cam') === 'src') {
+    if (PHANTOM_MODE) { camera.position.copy(PHANTOM); phantomBody.visible = false; }
+    const d = new THREE.Vector3().subVectors(DEMO_SRC, camera.position);
+    yaw = -Math.atan2(-d.x, -d.z); pitch = Math.atan2(d.y, Math.hypot(d.x, d.z));
+  }
+  if (params.has('noroom')) room.visible = false;
+  window.__dbg = { flows, camera };
   flows[0].born = clockNow.t - (+params.get('age') || 6);
 }
 
@@ -998,7 +1009,7 @@ const arrivalMesh = new THREE.Mesh(arrivalGeo, new THREE.ShaderMaterial({
       float k = smoothstep(0.03, 0.45, s);
       float r = mix(0.12, 0.5 + 1.5 * fract(aB.z * 3.7), k) + max(0., s - 0.6) * 1.6;
       float y = mix(uChest.y, mix(0.05, uBody.y + 0.45, aA.w), smoothstep(0.03, 0.5, s)) + max(0., s - 0.6) * 0.4;
-      float ang = base + aA.y * k + s * 3.2 + uTime * 0.15;
+      float ang = base + aA.y * k - s * 3.2 - uTime * 0.15;
       vec3 swirl = vec3(uBody.x + cos(ang) * r, y, uBody.z + sin(ang) * r);
       vis = smoothstep(0., 0.02, s) * (1. - smoothstep(0.65, 1., s));
       return mix(through, swirl, smoothstep(0.05, 0.22, s));
