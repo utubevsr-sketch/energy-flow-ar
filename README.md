@@ -17,18 +17,19 @@ Hands only, no controllers. The qualities and their colours come from Puja VR.
 5. **Pinch** (thumb and index finger) to cast a flow from that spot. The vortex spins up on the surface for about a second, then the torrent races to you and keeps flowing.
 6. The flow follows you as you move. It keeps going until you press **Clear flows**.
 
-### The menu panel
+### The menu (on your left hand)
 
-It floats about 0.7 m in front of you, a little below eye level. Point at it and pinch to press a button. A pinch on the panel never casts a flow.
+The menu never floats in front of you. **Turn your left palm toward your face** and hold it there for a moment: the menu appears just above your left hand, facing you. Turn the palm away and it fades out after about half a second. When you first enter AR, a short hint reminds you of this.
+
+Press buttons with your right hand: point the ray at a button and pinch, or poke it directly with your right index fingertip. A pinch on the menu never casts a flow.
 
 - **Set 1 to Set 5**: the five quality sets (24 qualities) from Puja VR.
 - The qualities of the set, each with its colour, and **All of this set together** (a flow in all the set's colours).
 - **Receive into**: Auto (the default), Heart or Palms. See below.
 - **Intensity**: Gentle, Strong (the default) or Torrent.
 - **Clear flows**: fades out every flow.
-- **Hide menu**: hides the panel and leaves a small glowing orb. Pinch the orb to bring the menu back.
 
-If you turn away, the panel follows you after about 2 seconds. Your choices are saved for next time.
+The hand menu needs hand tracking. With controllers only (or in the desktop preview) the menu stays fixed where it first appears. Your choices are saved for next time.
 
 ### Room setup (for surface hit-tests)
 
@@ -72,6 +73,7 @@ For screenshots and checks:
 | `?demo` | First-person view of a flow from the front wall |
 | `?demo=side` | Third-person view of the flow going to a stand-in person |
 | `?demo=arrival` | Third-person view of the arrival, with a translucent stand-in body and stand-in hands |
+| `?demo=menu` | A stand-in left palm turned toward you, showing the hand menu |
 | `?demo=palms` | The stand-in person holds both palms out to the flow: two streams, one into each palm (`&cam=hand` gives a close-up of the motes) |
 | `&recv=0..2` | Receive into Auto, Heart or Palms |
 | `&set=0..4&q=0..4` (`q=-1` is all together), `&i=0..2` | Quality and intensity for the demo |
@@ -90,6 +92,7 @@ Screenshots are in [`screenshots/`](screenshots/).
 - In Auto, a palm receives when it is open (fingertips on average more than 6.5 cm from the palm centre) and faces the flow's source (within about 60°).
 - The hand motes run 25 cm past the wrist along the estimated forearm line.
 - A new quality choice re-tints flows that are already running.
+- The hand menu opens when the left palm faces your eyes (within about 50°) for 0.3 s, sits about 12 cm above the hand at 0.28 m wide, and closes 0.5 s after you turn away.
 - The flare peaks at about 35% wash and settles to about 10%.
 
 ## Technical notes

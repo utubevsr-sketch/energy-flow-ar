@@ -67,7 +67,8 @@ const params = new URLSearchParams(location.search);
 const DEMO = params.has('demo');
 const DEMO_SIDE = params.get('demo') === 'side';
 const DEMO_ARRIVAL = params.get('demo') === 'arrival';
-const DEMO_PALMS = params.get('demo') === 'palms'; // stand-in person holding both palms out to the flow
+const DEMO_PALMS = params.get('demo') === 'palms';
+const DEMO_MENU = params.get('demo') === 'menu'; // fakes a left palm turned toward you, to show the hand menu // stand-in person holding both palms out to the flow
 const STOP_AT = DEMO ? +params.get('stop') || 0 : 0;
 const PHANTOM_MODE = DEMO_SIDE || DEMO_ARRIVAL || DEMO_PALMS; // the target is a stand-in person seen from outside
 if (DEMO) document.body.classList.add('demo');
@@ -522,6 +523,7 @@ function clearFlows() { flows.forEach(f => { f.dying = true; }); }
 const head = new THREE.Vector3(), headQ = new THREE.Quaternion();
 const fwd = new THREE.Vector3(), fwdYaw = new THREE.Vector3(0, 0, -1);
 const chest = new THREE.Vector3(0, 1.37, 1.5); // the heart: 0.23 m below the eyes, 0.15 m forward
+const receivingNow = [false, false]; // which hand (by index) poured in last frame
 let handsNow = []; // tracked hands this frame: palm centre, palm normal, wrist, forearm line, fingertips
 const _tv = new THREE.Vector3();
 const PHANTOM = new THREE.Vector3(0, 1.6, 0.6); // the person, in the ?demo=side view
@@ -560,17 +562,6 @@ const panel = (() => {
   const mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.424), new THREE.MeshBasicMaterial({ map: tex, transparent: true, toneMapped: false }));
   mesh.renderOrder = 10;
   scene.add(mesh);
-  // A small glowing orb stands in for the hidden menu; pinch it to bring the menu back.
-  const orbTex = (() => {
-    const c = document.createElement('canvas'); c.width = c.height = 128;
-    const x = c.getContext('2d'), g = x.createRadialGradient(64, 64, 0, 64, 64, 64);
-    g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.25, 'rgba(255,240,210,.8)'); g.addColorStop(1, 'rgba(255,200,120,0)');
-    x.fillStyle = g; x.fillRect(0, 0, 128, 128);
-    return new THREE.CanvasTexture(c);
-  })();
-  const orb = new THREE.Sprite(new THREE.SpriteMaterial({ map: orbTex, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
-  orb.scale.setScalar(0.07); orb.visible = false;
-  scene.add(orb);
 
   let buttons = [], hover = new Set(), hoverKey = '';
   const css = (c) => '#' + c.getHexString(THREE.LinearSRGBColorSpace);
@@ -645,11 +636,11 @@ const panel = (() => {
         ctx.fillText(label, x + iw / 2, y + 31);
       });
     });
-    [['clear', 'Clear flows', 24], ['hide', 'Hide menu', 518]].forEach(([id, label, x]) => {
-      const fg = button(id, x, 754, 482, 86, false);
+    {
+      const fg = button('clear', 24, 754, W - 48, 86, false);
       ctx.fillStyle = fg; ctx.font = 'bold 30px system-ui, sans-serif'; ctx.textAlign = 'center';
-      ctx.fillText(label, x + 241, 798);
-    });
+      ctx.fillText('Clear flows', W / 2, 798);
+    }
     tex.needsUpdate = true;
   }
   draw();
@@ -667,13 +658,8 @@ const panel = (() => {
     else if (k === 'int') state.intensity = +v;
     else if (k === 'recv') state.recv = +v;
     else if (k === 'clear') clearFlows();
-    else if (k === 'hide') setVisible(false);
     if (k === 'set' || k === 'q') { const p = palette(); flows.forEach(f => { f.target = p.map(c => c.clone()); }); }
     save(); audio.click(); draw();
-  }
-  function setVisible(v) {
-    mesh.visible = v; orb.visible = !v;
-    if (!v) orb.position.copy(mesh.position);
   }
   function setHover(ids) {
     const key = [...ids].sort().join('|');
@@ -690,25 +676,45 @@ const panel = (() => {
     target.pos.copy(dummy.position); target.q.copy(dummy.quaternion); target.set = true;
     if (instant) { mesh.position.copy(target.pos); mesh.quaternion.copy(target.q); }
   }
-  let outFor = 0;
-  function follow(dt) {
-    // Lazily follow your turning (yaw only): only once the menu has been out of view for 2 s.
-    const p = mesh.visible ? mesh.position : orb.position;
-    const to = new THREE.Vector3(p.x - head.x, 0, p.z - head.z).normalize();
-    outFor = to.dot(fwdYaw) < Math.cos(THREE.MathUtils.degToRad(50)) ? outFor + dt : 0;
-    if (outFor > 2) { place(false); outFor = 0; }
-    if (target.set) {
-      const k = 1 - Math.exp(-dt * 3);
-      mesh.position.lerp(target.pos, k); mesh.quaternion.slerp(target.q, k);
-      orb.position.copy(mesh.position);
+  // Hand menu: it appears only while you turn your LEFT palm toward your face (held ~0.3 s), floats ~12 cm above
+  // and beside that hand facing you, and fades ~0.5 s after you turn the palm away. It never moves in front of you.
+  // Without tracked hands it stays world-locked where it was placed.
+  let facingFor = 0, awayFor = 9, opacity = 0, handMode = false, handModeShown = false, poked = false;
+  function worldLock() { handMode = false; handModeShown = false; opacity = 0; mesh.visible = true; mesh.material.opacity = 1; mesh.scale.setScalar(1); }
+  const _p = new THREE.Vector3(), _l = new THREE.Vector3();
+  function handMenu(dt, hands) {
+    const left = hands.find(h => h.handedness === 'left');
+    if (hands.length) handMode = true;
+    const wasHidden = !mesh.visible || !handModeShown;
+    if (!handMode) return; // no tracked hands yet: stays world-locked
+    const facing = left && !receivingNow[left.idx] && _p.subVectors(head, left.palm).normalize().dot(left.normal) > 0.6;
+    facingFor = facing ? facingFor + dt : 0;
+    awayFor = facing ? 0 : awayFor + dt;
+    const show = facingFor > 0.3 || (opacity > 0 && awayFor < 0.5);
+    opacity = Math.max(0, Math.min(1, opacity + (show ? dt / 0.15 : -dt / 0.25)));
+    mesh.visible = opacity > 0.01;
+    mesh.material.opacity = opacity;
+    handModeShown = mesh.visible;
+    if (left && mesh.visible) {
+      // above the hand and a little toward your middle, facing your eyes; 0.28 m wide
+      const inward = _l.subVectors(head, left.palm).setY(0).normalize().cross(UP).negate();
+      dummy.position.copy(left.palm).add(new THREE.Vector3(0, 0.12, 0)).addScaledVector(inward, 0.06);
+      dummy.lookAt(head);
+      const k = wasHidden ? 1 : 1 - Math.exp(-dt * 14); // appear right at the hand, then follow it smoothly
+      mesh.position.lerp(dummy.position, k); mesh.quaternion.slerp(dummy.quaternion, k);
+      mesh.scale.setScalar(0.56);
     }
-    if (orb.visible) {
-      const c = palette()[Math.floor(clockNow.t / 1.5) % 5];
-      orb.material.color.copy(c).lerp(new THREE.Color(1, 1, 1), 0.3);
-      orb.scale.setScalar(0.065 + 0.01 * Math.sin(clockNow.t * 3));
+    // a direct poke with the right index fingertip presses a button
+    const right = hands.find(h => h.handedness === 'right');
+    if (mesh.visible && right && right.indexTip) {
+      mesh.updateMatrixWorld();
+      const local = mesh.worldToLocal(_p.copy(right.indexTip));
+      const inside = Math.abs(local.x) < 0.25 && Math.abs(local.y) < 0.212;
+      if (inside && Math.abs(local.z) < 0.012 && !poked) { poked = true; press(idAt({ x: local.x / 0.5 + 0.5, y: local.y / 0.424 + 0.5 })); }
+      if (!inside || local.z > 0.025) poked = false;
     }
   }
-  return { mesh, orb, idAt, press, setVisible, setHover, place, follow, draw };
+  return { mesh, idAt, press, setHover, place, handMenu, worldLock, draw };
 })();
 
 // ---------- pointing: hand rays and reticles ----------
@@ -765,7 +771,6 @@ function onSelect(p) {
   if (clockNow.t - p.lastSel < 0.25) return;
   p.lastSel = clockNow.t;
   if (p.target === 'panel') panel.press(p.hoverId); // pinching on the panel never casts a flow
-  else if (p.target === 'orb') { panel.setVisible(true); audio.click(); }
   else if (p.target === 'surface') castFlow(p.point, p.normal);
 }
 
@@ -778,8 +783,6 @@ function aim(p, origin, dir, frame, refSpace) {
   if (panel.mesh.visible) {
     const hit = raycaster.intersectObject(panel.mesh, false)[0];
     if (hit) { p.target = 'panel'; p.hoverId = panel.idAt(hit.uv); len = hit.distance; }
-  } else if (raycaster.ray.distanceToPoint(panel.orb.position) < 0.06 && _d.subVectors(panel.orb.position, origin).dot(dir) > 0) {
-    p.target = 'orb'; len = origin.distanceTo(panel.orb.position);
   }
   if (!p.target) {
     p.target = 'surface';
@@ -905,6 +908,31 @@ const audio = (() => {
   };
 })();
 
+// A short floating hint on first entry: how to open the hand menu.
+const menuHint = (() => {
+  const c = document.createElement('canvas'); c.width = 1024; c.height = 128;
+  const x = c.getContext('2d');
+  x.fillStyle = 'rgba(16,11,8,.8)'; x.beginPath(); x.roundRect(4, 4, 1016, 120, 30); x.fill();
+  x.strokeStyle = '#8a6a32'; x.lineWidth = 3; x.stroke();
+  x.fillStyle = '#f4e4c1'; x.font = '600 46px system-ui, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
+  x.fillText('Turn your left palm toward you for the menu', 512, 66);
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.075), new THREE.MeshBasicMaterial({ map: tex, transparent: true, toneMapped: false, depthWrite: false }));
+  mesh.visible = false; mesh.renderOrder = 11; scene.add(mesh);
+  let left = 0;
+  return {
+    show() {
+      mesh.position.copy(head).addScaledVector(fwdYaw, 0.9).add(new THREE.Vector3(0, -0.12, 0));
+      mesh.lookAt(head); left = 6; mesh.visible = true;
+    },
+    update(dt) {
+      if (left <= 0) return;
+      left -= dt; mesh.material.opacity = Math.min(1, left / 0.6, (6 - left) / 0.4);
+      if (left <= 0) mesh.visible = false;
+    },
+  };
+})();
+
 // ---------- AR session ----------
 const enterBtn = document.getElementById('enter');
 const hint = document.getElementById('hint');
@@ -925,7 +953,7 @@ enterBtn.addEventListener('click', async () => {
     session.addEventListener('end', () => {
       room.visible = true; enterBtn.style.display = ''; hint.style.display = '';
       pointers.forEach(p => { p.reticle.visible = false; });
-      panel.place(true, -0.45, 1.0, 0.3);
+      panel.worldLock(); panel.place(true, -0.45, 1.0, 0.3);
     });
     await renderer.xr.setSession(session);
     room.visible = false; enterBtn.style.display = 'none'; hint.style.display = 'none';
@@ -954,6 +982,7 @@ function startDemo() {
   if (params.has('recv')) state.recv = Math.min(2, Math.max(0, +params.get('recv')));
   if (params.has('i')) state.intensity = Math.min(2, Math.max(0, +params.get('i')));
   castFlow(p, n);
+  panel.draw();
   // &cam=src: stand where the energy arrives and look straight at the source (used to verify the spin direction)
   if (params.get('cam') === 'src') {
     if (PHANTOM_MODE) { camera.position.copy(PHANTOM); phantomBody.visible = false; }
@@ -1209,7 +1238,11 @@ const sparks = (() => {
 
 // 4) Hands: glow on the fingertips and palm of your real hands (hand tracking), arcs between fingers and hands.
 const TIP_JOINTS = ['thumb-tip', 'index-finger-tip', 'middle-finger-tip', 'ring-finger-tip', 'pinky-finger-tip'];
-const xrHands = [0, 1].map(i => { const h = renderer.xr.getHand(i); scene.add(h); return h; });
+const xrHands = [0, 1].map(i => {
+  const h = renderer.xr.getHand(i); scene.add(h);
+  h.addEventListener('connected', (e) => { h.userData.handedness = e.data && e.data.handedness; });
+  return h;
+});
 const handGlow = (() => {
   const N = 12, pos = new Float32Array(N * 3).fill(-50), col = new Float32Array(N * 3);
   const geo = new THREE.BufferGeometry();
@@ -1228,12 +1261,21 @@ function demoHands() {
     const forearm = DEMO_PALMS ? new THREE.Vector3(s * 0.2, -0.4, 1).normalize() : new THREE.Vector3(0, 1, 0.1).normalize();
     const wrist = palm.clone().addScaledVector(forearm, 0.07);
     const tips = [0, 1, 2, 3, 4].map(k => palm.clone().addScaledVector(forearm, -0.09).add(new THREE.Vector3(s * (0.035 - k * 0.017), 0.01 * Math.sin(k), 0)));
-    return { idx, palm, normal, wrist, forearm, tips, open: true, receiving: false };
+    return { idx, palm, normal, wrist, forearm, tips, open: true, receiving: false, handedness: s < 0 ? 'left' : 'right', indexTip: null };
   });
 }
 // Real hands from WebXR hand tracking. Quest tracks the hand joints only (not the forearm), so the forearm line
 // is estimated from the wrist joint: back along its +Z axis, away from the fingers.
+// ?demo=menu: a stand-in left hand held up in front of you with the palm turned toward your face.
+function menuDemoHand() {
+  const right = new THREE.Vector3(-fwdYaw.z, 0, fwdYaw.x);
+  const palm = head.clone().addScaledVector(fwdYaw, 0.38).addScaledVector(right, -0.16).add(new THREE.Vector3(0, -0.26, 0));
+  const normal = new THREE.Vector3().subVectors(head, palm).normalize();
+  const forearm = new THREE.Vector3(0, -1, 0.3).normalize();
+  return { idx: 0, palm, normal, wrist: palm.clone().addScaledVector(forearm, 0.07), forearm, tips: [], open: true, receiving: false, handedness: 'left', indexTip: null };
+}
 function readHands() {
+  if (DEMO_MENU) return [menuDemoHand()];
   if (DEMO_ARRIVAL || DEMO_PALMS) return demoHands();
   if (!renderer.xr.isPresenting) return [];
   const out = [];
@@ -1247,7 +1289,9 @@ function readHands() {
     const forearm = new THREE.Vector3(0, 0, 1).applyQuaternion(wr.quaternion).normalize();
     const tips = TIP_JOINTS.map(n => j[n]).filter(t => t && t.visible).map(t => t.position);
     const reach = tips.length ? tips.reduce((s, t) => s + t.distanceTo(palm), 0) / tips.length : 0;
-    out.push({ idx, palm, normal, wrist: wr.position, forearm, tips, open: reach > 0.065, receiving: false });
+    const it = j['index-finger-tip'];
+    out.push({ idx, palm, normal, wrist: wr.position, forearm, tips, open: reach > 0.065, receiving: false,
+      handedness: h.userData.handedness || (idx ? 'right' : 'left'), indexTip: it && it.visible ? it.position : null });
   });
   return out;
 }
@@ -1496,10 +1540,9 @@ renderer.setAnimationLoop((ts, frame) => {
   if (!started) {
     started = true;
     panel.place(true, -0.45, 1.0, 0.3);
-    if (DEMO) { startDemo(); panel.setVisible(false); panel.orb.visible = false; }
+    if (DEMO) { startDemo(); if (!DEMO_MENU) panel.mesh.visible = false; }
   }
-  if (xr && needPlace && frame.getViewerPose(refSpace)) { needPlace = false; panel.place(true); panel.setVisible(true); }
-  if (xr) panel.follow(dt);
+  if (xr && needPlace && frame.getViewerPose(refSpace)) { needPlace = false; panel.place(true); menuHint.show(); }
 
   // pointing
   _hov.clear();
@@ -1522,6 +1565,8 @@ renderer.setAnimationLoop((ts, frame) => {
   panel.setHover(new Set(_hov));
 
   handsNow = readHands();
+  if (xr || DEMO_MENU) panel.handMenu(dt, handsNow);
+  menuHint.update(dt);
   let level = 0;
   for (let i = flows.length - 1; i >= 0; i--) {
     const f = flows[i];
@@ -1529,6 +1574,8 @@ renderer.setAnimationLoop((ts, frame) => {
     level += f.level();
   }
   empower.update(dt, frame, refSpace);
+  receivingNow[0] = receivingNow[1] = false;
+  handsNow.forEach(h => { if (h.receiving) receivingNow[h.idx] = true; });
   audio.update(level, clockNow.t);
   renderer.render(scene, camera);
 });
