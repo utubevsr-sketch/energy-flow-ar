@@ -35,12 +35,14 @@ const INTENSITIES = [
 ];
 const MAX_FLOWS = 3; // guess: a new flow beyond this replaces the oldest
 
-const state = { set: 0, q: 0, intensity: 1 }; // q = -1 means all of the set together
+const state = { set: 0, q: 0, intensity: 1, recv: 0 }; // q = -1 means all of the set together; recv: 0 Auto, 1 Heart, 2 Palms
+const RECEIVE = ['Auto', 'Heart', 'Palms'];
 try {
   const s = JSON.parse(localStorage.getItem('energy-flow') || '{}');
   if (s.set >= 0 && s.set < QUALITY_SETS.length) state.set = s.set;
   if (s.q >= -1 && s.q < QUALITY_SETS[state.set].length) state.q = s.q;
   if (s.intensity >= 0 && s.intensity < INTENSITIES.length) state.intensity = s.intensity;
+  if (s.recv >= 0 && s.recv < RECEIVE.length) state.recv = s.recv;
 } catch (e) { /* only a convenience */ }
 const save = () => { try { localStorage.setItem('energy-flow', JSON.stringify(state)); } catch (e) { /* only a convenience */ } };
 const selectedQualities = () => (state.q < 0 ? QUALITY_SETS[state.set] : [QUALITY_SETS[state.set][state.q]]);
@@ -65,8 +67,9 @@ const params = new URLSearchParams(location.search);
 const DEMO = params.has('demo');
 const DEMO_SIDE = params.get('demo') === 'side';
 const DEMO_ARRIVAL = params.get('demo') === 'arrival';
+const DEMO_PALMS = params.get('demo') === 'palms'; // stand-in person holding both palms out to the flow
 const STOP_AT = DEMO ? +params.get('stop') || 0 : 0;
-const PHANTOM_MODE = DEMO_SIDE || DEMO_ARRIVAL; // the target is a stand-in person seen from outside
+const PHANTOM_MODE = DEMO_SIDE || DEMO_ARRIVAL || DEMO_PALMS; // the target is a stand-in person seen from outside
 if (DEMO) document.body.classList.add('demo');
 
 // ---------- renderer ----------
@@ -119,8 +122,8 @@ float fbmP(vec2 p, float per){
 }`;
 
 const FLOW = /* glsl */`
-uniform vec3 uS, uC, uD, uN, uPN, uE1, uE2;
-uniform float uAge, uLen, uRsrc, uRdst, uRdisk, uReveal, uSpin, uFade, uTwist, uGain, uSpeed, uArrive;
+uniform vec3 uS, uC, uD, uN, uPN, uE1, uE2, uPA, uPB; // uPA/uPB: the two palms (both = uD when pouring into the heart)
+uniform float uSplit, uGlow, uAge, uLen, uRsrc, uRdst, uRdisk, uReveal, uSpin, uFade, uTwist, uGain, uSpeed, uArrive;
 uniform vec3 uColors[5];
 uniform float uNC;
 vec3 bez(float w){ float a = 1. - w; return a * a * uS + 2. * a * w * uC + w * w * uD; }
@@ -160,7 +163,10 @@ vec3 flowPos(float phase, float t, float rf, float a0, float spd, float seed, ou
              * smoothstep(0., 0.06, w);
   float r = R * rf * (1. + 0.15 * turb);
   vis = (1. - smoothstep(uReveal - 0.06, uReveal, w)) * (1. - smoothstep(0.96, 1., w));
-  return bez(w) + (uPN * cos(ang) + B2 * sin(ang)) * r + T * R * 0.12 * turb;
+  vec3 p = bez(w) + (uPN * cos(ang) + B2 * sin(ang)) * r + T * R * 0.12 * turb;
+  // Near the end the stream splits, each particle pouring into one palm or the other.
+  vec3 palm = fract(seed * 5.31) < 0.5 ? uPA : uPB;
+  return p + (palm - uD) * smoothstep(0.72, 1., w);
 }`;
 
 // ---------- shared geometry ----------
@@ -277,7 +283,7 @@ function coreMat(u) {
       varying vec2 vT; varying float vF; varying float vR; varying float vNear;
       void main(){
         float w = vT.x;
-        float mask = (1. - smoothstep(uReveal - 0.05, uReveal, w)) * uFade * smoothstep(0., 0.03, w);
+        float mask = (1. - smoothstep(uReveal - 0.05, uReveal, w)) * uFade * smoothstep(0., 0.03, w) * (1. - uSplit * smoothstep(0.7, 0.88, w));
         // Bright streaks scrolling toward you along the beam.
         float s1 = fbmP(vec2(vT.y * 6., w * uLen * 4. - uAge * 7. * uSpeed), 6.);
         float s2 = fbmP(vec2(vT.y * 12. + 3., w * uLen * 9. - uAge * 11. * uSpeed), 12.);
@@ -299,7 +305,7 @@ function sheathMat(u) {
       varying vec2 vT; varying float vF; varying float vR; varying float vNear;
       void main(){
         float w = vT.x;
-        float mask = (1. - smoothstep(uReveal - 0.06, uReveal, w)) * uFade * (1. - smoothstep(0.8, 0.97, w)) * smoothstep(0., 0.04, w);
+        float mask = (1. - smoothstep(uReveal - 0.06, uReveal, w)) * uFade * (1. - smoothstep(0.8, 0.97, w)) * smoothstep(0., 0.04, w) * (1. - uSplit * smoothstep(0.6, 0.8, w));
         // Spiral bands that follow the particles' paths round the funnel wall.
         float per = 5.;
         float x = vT.y * per - per * (uTwist * (w * 6. + 1.5 / (vR + 0.05)) + 0.6 * uAge) / TAU;
@@ -352,19 +358,21 @@ function diskMat(u) {
   });
 }
 
-function chestMat(u) {
+function chestMat(u, at) {
   return new THREE.ShaderMaterial({
     uniforms: u, ...GLOW_BLEND,
     vertexShader: FLOW + /* glsl */`
-      varying vec2 vP;
+      varying vec2 vP; varying float vNear;
       void main(){
-        vec4 mv = viewMatrix * vec4(uD, 1.);
-        mv.xy += position.xy * 0.34;
+        vec4 mv = viewMatrix * vec4(${at}, 1.);
+        // Your own chest is only ~0.3 m from your eyes: keep its glow small and soft so it never fills the view.
+        vNear = smoothstep(0.3, 0.9, distance(${at}, cameraPosition));
+        mv.xy += position.xy * uGlow * mix(0.45, 1., vNear);
         vP = position.xy;
         gl_Position = projectionMatrix * mv;
       }`,
     fragmentShader: FLOW + /* glsl */`
-      varying vec2 vP;
+      varying vec2 vP; varying float vNear;
       void main(){
         float r = length(vP);
         float g = exp(-r * r * 16.) * 0.8 + exp(-r * r * 4.) * 0.2;
@@ -374,7 +382,7 @@ function chestMat(u) {
           rings += exp(-pow((r - p) / 0.035, 2.)) * (1. - p) * 0.55;
         }
         vec3 col = mix(colorSmooth(uAge * 0.2) * 1.5, vec3(1.2), exp(-r * r * 30.));
-        float a = (g + rings) * uArrive * uFade * uGain * (1. - smoothstep(0.85, 1., r));
+        float a = (g + rings) * uArrive * uFade * uGain * (1. - smoothstep(0.85, 1., r)) * mix(0.5, 0.75, uSplit) * mix(0.3, 1., vNear);
         gl_FragColor = vec4(col * a, a * 0.4);
       }`,
   });
@@ -425,6 +433,7 @@ class Flow {
     this.u = {
       uS: { value: this.S }, uC: { value: new THREE.Vector3() }, uD: { value: chest.clone() }, uN: { value: this.n },
       uPN: { value: new THREE.Vector3(1, 0, 0) }, uE1: { value: E1 }, uE2: { value: E2 },
+      uPA: { value: new THREE.Vector3() }, uPB: { value: new THREE.Vector3() }, uSplit: { value: 0 }, uGlow: { value: 0.3 },
       uAge: { value: 0 }, uLen: { value: 1 }, uReveal: { value: 0 }, uSpin: { value: 0 }, uFade: { value: 1 }, uArrive: { value: 0 },
       // guesses, tuned by eye: funnel and disk scale with distance so a near surface does not swamp you
       uRsrc: { value: Math.min(0.8, Math.max(0.3, d0 * 0.26)) }, uRdst: { value: 0.1 }, uRdisk: { value: Math.min(1.5, Math.max(0.6, d0 * 0.48)) },
@@ -443,20 +452,33 @@ class Flow {
       mk(hazeGeo, hazeMat(this.u)),
       mk(tubeGeo, coreMat(this.u)),
       mk(streakGeos[intensity], streakMat(this.u)),
-      mk(planeGeo, chestMat(this.u)),
+      mk(planeGeo, chestMat(this.u, 'uPA')),
+      mk(planeGeo, chestMat(this.u, 'uPB')),
     ];
     // ?hide=disk,sheath,haze,core,streaks,chest turns layers off, for tuning
     const hide = (params.get('hide') || '').split(',');
-    ['disk', 'sheath', 'haze', 'core', 'streaks', 'chest'].forEach((k, i) => { if (hide.includes(k)) this.meshes[i].visible = false; });
+    ['disk', 'sheath', 'haze', 'core', 'streaks', 'chest', 'chest'].forEach((k, i) => { if (hide.includes(k)) this.meshes[i].visible = false; });
   }
   bez(w, out) {
     const { uS, uC, uD } = this.u, a = 1 - w;
     return out.copy(uS.value).multiplyScalar(a * a).addScaledVector(uC.value, 2 * a * w).addScaledVector(uD.value, w * w);
   }
-  updatePath() {
-    const u = this.u, S = this.S, D = u.uD.value.copy(chest);
+  updatePath(dt) {
+    const u = this.u, S = this.S;
+    // Where it pours: into open palms that face this flow's source (Auto), always the palms, or the heart.
+    let recv = [];
+    if (state.recv !== 1) recv = handsNow.filter(h => state.recv === 2 || (h.open && _tv.subVectors(S, h.palm).normalize().dot(h.normal) > 0.5));
+    recv.forEach(h => { h.receiving = true; });
+    const A = recv.length ? recv[0].palm.clone().addScaledVector(recv[0].normal, 0.03) : chest.clone();
+    const B = recv.length > 1 ? recv[1].palm.clone().addScaledVector(recv[1].normal, 0.03) : A.clone();
+    if (dt === undefined) { u.uPA.value.copy(A); u.uPB.value.copy(B); }
+    else { const k = 1 - Math.exp(-dt / 0.1); u.uPA.value.lerp(A, k); u.uPB.value.lerp(B, k); } // settles in about 0.3 s
+    u.uSplit.value = Math.min(1, u.uPA.value.distanceTo(u.uPB.value) / 0.15);
+    u.uGlow.value += ((recv.length ? 0.16 : 0.3) - u.uGlow.value) * (dt === undefined ? 1 : 1 - Math.exp(-dt / 0.1));
+    const D = u.uD.value.copy(u.uPA.value).add(u.uPB.value).multiplyScalar(0.5);
     const dist = Math.max(0.6, S.distanceTo(D));
-    u.uC.value.copy(S).addScaledVector(this.n, 0.35 * dist).addScaledVector(UP, 0.3 * dist);
+    // A gentle arc (not a high droop), so the stream arrives nearly level and visibly strikes the chest.
+    u.uC.value.copy(S).addScaledVector(this.n, 0.35 * dist).addScaledVector(UP, 0.2 * dist);
     const sc = new THREE.Vector3().subVectors(u.uC.value, S), sd = new THREE.Vector3().subVectors(D, S);
     const pn = new THREE.Vector3().crossVectors(sc, sd);
     if (pn.lengthSq() < 1e-6) pn.crossVectors(sd, Math.abs(sd.y) < 0.9 * sd.length() ? UP : new THREE.Vector3(1, 0, 0));
@@ -476,7 +498,7 @@ class Flow {
     u.uColors.value.forEach((c, i) => c.lerp(this.target[i], kc));
     if (this.dying) this.fade -= dt / 0.8;
     u.uFade.value = Math.max(0, this.fade);
-    this.updatePath();
+    this.updatePath(dt);
     return this.fade > 0;
   }
   level() { return Math.max(0, this.fade) * smooth(0, 1.5, clockNow.t - this.born) * this.u.uGain.value; }
@@ -495,7 +517,9 @@ function clearFlows() { flows.forEach(f => { f.dying = true; }); }
 // ---------- head and chest ----------
 const head = new THREE.Vector3(), headQ = new THREE.Quaternion();
 const fwd = new THREE.Vector3(), fwdYaw = new THREE.Vector3(0, 0, -1);
-const chest = new THREE.Vector3(0, 1.18, 1.5);
+const chest = new THREE.Vector3(0, 1.37, 1.5); // the heart: 0.23 m below the eyes, 0.15 m forward
+let handsNow = []; // tracked hands this frame: palm centre, palm normal, wrist, forearm line, fingertips
+const _tv = new THREE.Vector3();
 const PHANTOM = new THREE.Vector3(0, 1.6, 0.6); // the person, in the ?demo=side view
 
 // ---------- desktop preview room ----------
@@ -525,11 +549,11 @@ const roomMeshes = [roomBox, sofa, table];
 
 // ---------- the 3D menu panel ----------
 const panel = (() => {
-  const W = 1024, H = 778;
+  const W = 1024, H = 868;
   const canvas = document.createElement('canvas'); canvas.width = W; canvas.height = H;
   const ctx = canvas.getContext('2d');
   const tex = new THREE.CanvasTexture(canvas); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
-  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.38), new THREE.MeshBasicMaterial({ map: tex, transparent: true, toneMapped: false }));
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.424), new THREE.MeshBasicMaterial({ map: tex, transparent: true, toneMapped: false }));
   mesh.renderOrder = 10;
   scene.add(mesh);
   // A small glowing orb stands in for the hidden menu; pinch it to bring the menu back.
@@ -605,20 +629,22 @@ const panel = (() => {
       const lh = size + 6;
       lines.forEach((l, k) => ctx.fillText(l, x + 96, y + 64 + (k - (lines.length - 1) / 2) * lh));
     });
-    // intensity
-    ctx.fillStyle = '#cbb48a'; ctx.font = '600 28px system-ui, sans-serif'; ctx.textAlign = 'left';
-    ctx.fillText('Intensity', 28, 616);
-    const iw = (W - 24 - 190 - 2 * 12) / 3;
-    INTENSITIES.forEach((it, i) => {
-      const x = 190 + i * (iw + 12);
-      const fg = button('int:' + i, x, 586, iw, 60, state.intensity === i);
-      ctx.fillStyle = fg; ctx.font = 'bold 28px system-ui, sans-serif'; ctx.textAlign = 'center';
-      ctx.fillText(it.label, x + iw / 2, 617);
+    // receive into, and intensity
+    const iw = (W - 24 - 230 - 2 * 12) / 3;
+    [['Receive into', 'recv', RECEIVE, state.recv, 586], ['Intensity', 'int', INTENSITIES.map(it => it.label), state.intensity, 676]].forEach(([title, key, labels, cur, y]) => {
+      ctx.fillStyle = '#cbb48a'; ctx.font = '600 28px system-ui, sans-serif'; ctx.textAlign = 'left';
+      ctx.fillText(title, 28, y + 30);
+      labels.forEach((label, i) => {
+        const x = 230 + i * (iw + 12);
+        const fg = button(key + ':' + i, x, y, iw, 60, cur === i);
+        ctx.fillStyle = fg; ctx.font = 'bold 28px system-ui, sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText(label, x + iw / 2, y + 31);
+      });
     });
     [['clear', 'Clear flows', 24], ['hide', 'Hide menu', 518]].forEach(([id, label, x]) => {
-      const fg = button(id, x, 664, 482, 86, false);
+      const fg = button(id, x, 754, 482, 86, false);
       ctx.fillStyle = fg; ctx.font = 'bold 30px system-ui, sans-serif'; ctx.textAlign = 'center';
-      ctx.fillText(label, x + 241, 708);
+      ctx.fillText(label, x + 241, 798);
     });
     tex.needsUpdate = true;
   }
@@ -635,6 +661,7 @@ const panel = (() => {
     if (k === 'set') { state.set = +v; if (state.q >= QUALITY_SETS[state.set].length) state.q = 0; }
     else if (k === 'q') state.q = v === 'all' ? -1 : +v;
     else if (k === 'int') state.intensity = +v;
+    else if (k === 'recv') state.recv = +v;
     else if (k === 'clear') clearFlows();
     else if (k === 'hide') setVisible(false);
     if (k === 'set' || k === 'q') { const p = palette(); flows.forEach(f => { f.target = p.map(c => c.clone()); }); }
@@ -906,8 +933,13 @@ enterBtn.addEventListener('click', async () => {
 
 // ---------- demo (for screenshots) ----------
 function startDemo() {
-  const p = new THREE.Vector3(-0.5, 1.35, -2.99), n = new THREE.Vector3(0, 0, 1);
-  if (DEMO_ARRIVAL) {
+  window.__flows = flows; // for automated checks
+  const p = DEMO_SRC.clone(), n = new THREE.Vector3(0, 0, 1);
+  if (DEMO_PALMS && params.get('cam') === 'hand') { // close-up of the right hand drawing motes in
+    camera.position.set(0.62, 1.42, 0.02); yaw = -2.1; pitch = -0.45;
+  } else if (DEMO_PALMS) {
+    camera.position.set(0.35, 2.35, -0.75); yaw = -2.95; pitch = -0.85;
+  } else if (DEMO_ARRIVAL) {
     camera.position.set(2.3, 1.6, 2.7); yaw = -0.72; pitch = -0.17;
   } else if (DEMO_SIDE) {
     camera.position.set(2.55, 1.75, 0.9); yaw = -1.05; pitch = -0.12;
@@ -916,6 +948,7 @@ function startDemo() {
   }
   if (params.has('set')) state.set = Math.min(4, Math.max(0, +params.get('set')));
   if (params.has('q')) state.q = Math.min(QUALITY_SETS[state.set].length - 1, Math.max(-1, +params.get('q')));
+  if (params.has('recv')) state.recv = Math.min(2, Math.max(0, +params.get('recv')));
   if (params.has('i')) state.intensity = Math.min(2, Math.max(0, +params.get('i')));
   castFlow(p, n);
   flows[0].born = clockNow.t - (+params.get('age') || 6);
@@ -1015,7 +1048,12 @@ const auraMat = (layer) => new THREE.ShaderMaterial({
       float edge = pow(1. - f, 1.5);
       float pulse = 0.8 + 0.2 * sin(uTime * 3.1 + vW.y * 2.);
       float ends = smoothstep(0., 0.2, vUv.y) * smoothstep(1., 0.8, vUv.y);
-      float near = smoothstep(0.25, 0.65, distance(vW, cameraPosition));
+      float near = smoothstep(0.3, 0.8, distance(vW, cameraPosition));
+      // From inside your own aura, only the part you see when looking down at your body glows.
+      float hh = (uBody.y + 0.25) * 0.5;
+      vec3 cl = (cameraPosition - vec3(uBody.x, hh - 0.05, uBody.z)) / vec3(0.6, hh, 0.6);
+      float down = smoothstep(-0.35, -0.75, normalize(vW - cameraPosition).y);
+      near *= mix(1., down, step(length(cl), 1.));
       vec3 col = ${layer === 0 ? 'mix(colorAt(vUv.x + uTime * 0.05) * 1.4, vec3(1.2), 0.75 * f)' : 'colorAt(vUv.x + uTime * 0.05) * 1.3'};
       float a = (${layer === 0 ? '0.35 * pow(f, 4.) + 0.02' : '0.015 + 0.4 * edge * n'}) * (0.35 + n) * pulse * ends * near * uE * (0.6 + 0.8 * uBurst) * ${layer === 0 ? '0.7' : '0.5'};
       gl_FragColor = vec4(col * a, a * 0.3);
@@ -1170,26 +1208,84 @@ const handGlow = (() => {
   pts.frustumCulled = false;
   return { pts, pos, col, geo };
 })();
-// In the desktop demo, stand-in hands at the sides of the stand-in person.
+// In the desktop demo, stand-in hands: at the sides (?demo=arrival) or held out, palms to the flow (?demo=palms).
+const DEMO_SRC = new THREE.Vector3(-0.5, 1.35, -2.99);
 function demoHands() {
-  return [-1, 1].map(s => {
-    const palm = new THREE.Vector3(PHANTOM.x + s * 0.34, 1.0, PHANTOM.z - 0.12);
-    const tips = [0, 1, 2, 3, 4].map(k => palm.clone().add(new THREE.Vector3(s * (0.02 - k * 0.012), -0.09 - 0.01 * Math.sin(k), -0.03 + k * 0.018)));
-    return { palm, tips };
+  return [-1, 1].map((s, idx) => {
+    const palm = DEMO_PALMS ? new THREE.Vector3(PHANTOM.x + s * 0.2, 1.24, PHANTOM.z - 0.34) : new THREE.Vector3(PHANTOM.x + s * 0.34, 1.0, PHANTOM.z - 0.12);
+    const normal = DEMO_PALMS ? new THREE.Vector3().subVectors(DEMO_SRC, palm).normalize() : new THREE.Vector3(-s, 0, 0);
+    const forearm = DEMO_PALMS ? new THREE.Vector3(s * 0.2, -0.4, 1).normalize() : new THREE.Vector3(0, 1, 0.1).normalize();
+    const wrist = palm.clone().addScaledVector(forearm, 0.07);
+    const tips = [0, 1, 2, 3, 4].map(k => palm.clone().addScaledVector(forearm, -0.09).add(new THREE.Vector3(s * (0.035 - k * 0.017), 0.01 * Math.sin(k), 0)));
+    return { idx, palm, normal, wrist, forearm, tips, open: true, receiving: false };
   });
 }
+// Real hands from WebXR hand tracking. Quest tracks the hand joints only (not the forearm), so the forearm line
+// is estimated from the wrist joint: back along its +Z axis, away from the fingers.
 function readHands() {
-  if (DEMO_ARRIVAL) return demoHands();
+  if (DEMO_ARRIVAL || DEMO_PALMS) return demoHands();
   if (!renderer.xr.isPresenting) return [];
   const out = [];
-  for (const h of xrHands) {
-    const j = h.joints, palm = j && j['middle-finger-metacarpal'];
-    if (!palm || !palm.visible) continue;
+  xrHands.forEach((h, idx) => {
+    const j = h.joints; if (!j) return;
+    const meta = j['middle-finger-metacarpal'], prox = j['middle-finger-phalanx-proximal'], wr = j.wrist;
+    if (!meta || !meta.visible || !wr || !wr.visible) return;
+    const palm = meta.position.clone();
+    if (prox && prox.visible) palm.lerp(prox.position, 0.5); // palm centre
+    const normal = new THREE.Vector3(0, -1, 0).applyQuaternion(meta.quaternion).normalize(); // out of the palm
+    const forearm = new THREE.Vector3(0, 0, 1).applyQuaternion(wr.quaternion).normalize();
     const tips = TIP_JOINTS.map(n => j[n]).filter(t => t && t.visible).map(t => t.position);
-    out.push({ palm: palm.position, tips, wrist: j.wrist && j.wrist.visible ? j.wrist.position : palm.position });
-  }
+    const reach = tips.length ? tips.reduce((s, t) => s + t.distanceTo(palm), 0) / tips.length : 0;
+    out.push({ idx, palm, normal, wrist: wr.position, forearm, tips, open: reach > 0.065, receiving: false });
+  });
   return out;
 }
+
+// Motes drawn INTO your hands: they appear a few cm in front of the palm, are pulled into its centre,
+// then run up the inside of the forearm and fade about 25 cm past the wrist. Stronger while that palm receives.
+const handMotes = (() => {
+  const N = 360, pos = new Float32Array(N * 3).fill(-50), col = new Float32Array(N * 3), parts = [];
+  for (let i = 0; i < N; i++) parts.push({ s: Math.random(), sp: 0.5 + Math.random() * 0.4, ox: Math.random() * 2 - 1, oy: Math.random() * 2 - 1, d: Math.random() });
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3).setUsage(THREE.DynamicDrawUsage));
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3).setUsage(THREE.DynamicDrawUsage));
+  const pts = new THREE.Points(geo, new THREE.PointsMaterial({ size: 0.011, map: dotTex, vertexColors: true, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, toneMapped: false }));
+  pts.frustumCulled = false;
+  const e1 = new THREE.Vector3(), a = new THREE.Vector3(), b = new THREE.Vector3(), p = new THREE.Vector3(), c = new THREE.Color();
+  const ease = (x) => x * x;
+  return {
+    pts,
+    update(dt, hands, E, cols) {
+      parts.forEach((q, i) => {
+        const h = hands.find(hh => hh.idx === (i & 1));
+        const strength = h ? E * (h.receiving ? 1 : 0.35) : 0;
+        if (!h || strength < 0.01) { pos[i * 3 + 1] = -50; return; }
+        q.s += dt * q.sp * (h.receiving ? 1.6 : 1);
+        if (q.s >= 1) { q.s -= 1; q.ox = Math.random() * 2 - 1; q.oy = Math.random() * 2 - 1; q.d = Math.random(); }
+        e1.crossVectors(h.normal, h.forearm).normalize();
+        const s = q.s;
+        if (s < 0.35) { // drawn in from in front of the palm
+          a.copy(h.palm).addScaledVector(h.normal, 0.05 + 0.07 * q.d).addScaledVector(e1, q.ox * 0.05).addScaledVector(h.forearm, q.oy * 0.05);
+          b.copy(h.palm).addScaledVector(h.normal, 0.005);
+          p.lerpVectors(a, b, ease(s / 0.35));
+        } else if (s < 0.55) { // palm centre to the wrist
+          a.copy(h.palm).addScaledVector(h.normal, 0.005).addScaledVector(e1, q.ox * 0.01);
+          b.copy(h.wrist).addScaledVector(h.normal, 0.012).addScaledVector(e1, q.ox * 0.012);
+          p.lerpVectors(a, b, (s - 0.35) / 0.2);
+        } else { // up the inside of the forearm
+          a.copy(h.wrist).addScaledVector(h.normal, 0.012).addScaledVector(e1, q.ox * 0.012);
+          b.copy(h.wrist).addScaledVector(h.forearm, 0.25).addScaledVector(h.normal, 0.02).addScaledVector(e1, q.ox * 0.018);
+          p.lerpVectors(a, b, (s - 0.55) / 0.45);
+        }
+        const k = smooth(0, 0.12, s) * (1 - smooth(0.8, 1, s)) * strength * 1.4;
+        c.copy(cols[i % 5]).lerp(new THREE.Color(1, 1, 1), 0.3).multiplyScalar(k);
+        pos[i * 3] = p.x; pos[i * 3 + 1] = p.y; pos[i * 3 + 2] = p.z;
+        col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
+      });
+      geo.attributes.position.needsUpdate = true; geo.attributes.color.needsUpdate = true;
+    },
+  };
+})();
 
 // 5) Flare and bloom: a head-locked overlay in front of your eyes, drawn last. Capped so the room stays visible.
 const flare = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.5), new THREE.ShaderMaterial({
@@ -1220,16 +1316,22 @@ const phantomBody = (() => {
   add(new THREE.CapsuleGeometry(0.17, 0.42, 6, 16), 0, 1.13, 0);
   add(new THREE.CapsuleGeometry(0.07, 0.68, 6, 12), -0.1, 0.42, 0);
   add(new THREE.CapsuleGeometry(0.07, 0.68, 6, 12), 0.1, 0.42, 0);
-  add(new THREE.CapsuleGeometry(0.05, 0.5, 6, 12), -0.29, 1.15, -0.06, -0.35);
-  add(new THREE.CapsuleGeometry(0.05, 0.5, 6, 12), 0.29, 1.15, -0.06, 0.35);
+  if (DEMO_PALMS) [-1, 1].forEach(s => { // arms held out, palms to the flow
+    const m = new THREE.Mesh(new THREE.CapsuleGeometry(0.045, 0.3, 6, 12), mat);
+    m.position.set(s * 0.21, 1.31, -0.17); m.rotation.x = 0.85; g.add(m);
+  });
+  else {
+    add(new THREE.CapsuleGeometry(0.05, 0.5, 6, 12), -0.29, 1.15, -0.06, -0.35);
+    add(new THREE.CapsuleGeometry(0.05, 0.5, 6, 12), 0.29, 1.15, -0.06, 0.35);
+  }
   g.position.set(PHANTOM.x, 0, PHANTOM.z);
-  g.visible = DEMO_ARRIVAL;
+  g.visible = DEMO_ARRIVAL || DEMO_PALMS;
   scene.add(g);
   return g;
 })();
 
 const empowerGroup = new THREE.Group();
-empowerGroup.add(arrivalMesh, aura, shock, shockFloor, ...bolts.meshes, sparks.pts, handGlow.pts);
+empowerGroup.add(arrivalMesh, aura, shock, shockFloor, ...bolts.meshes, sparks.pts, handGlow.pts, handMotes.pts);
 scene.add(empowerGroup);
 
 const empower = (() => {
@@ -1321,9 +1423,9 @@ const empower = (() => {
       eu.uChest.value.copy(chest);
       eu.uBody.value.copy(PHANTOM_MODE ? PHANTOM : head);
       // lightning rebuilt every 2 to 4 frames
-      const hands = readHands();
+      const hands = handsNow;
       if (++frames >= nextBuild) { frames = 0; nextBuild = 2 + Math.floor(Math.random() * 3); build(hands); }
-      // hand glow and embers
+      // hand glow
       let n = 0;
       const pulse = 0.8 + 0.3 * Math.sin(clockNow.t * 9) * Math.sin(clockNow.t * 5.3);
       for (const h of hands) {
@@ -1331,11 +1433,11 @@ const empower = (() => {
           if (n >= 12) break;
           _c.copy(eu.uColors.value[n % 5]).lerp(new THREE.Color(1, 1, 1), p === h.palm ? 0.5 : 0.25).multiplyScalar(E * pulse * (p === h.palm ? 1.2 : 0.8));
           handGlow.pos.set([p.x, p.y, p.z], n * 3); handGlow.col.set([_c.r, _c.g, _c.b], n * 3); n++;
-          if (Math.random() < dt * 6 * E) sparks.ember(p, eu.uColors.value[Math.floor(Math.random() * 5)]);
         }
       }
       for (; n < 12; n++) handGlow.pos[n * 3 + 1] = -50;
       handGlow.geo.attributes.position.needsUpdate = true; handGlow.geo.attributes.color.needsUpdate = true;
+      handMotes.update(dt, hands, E, eu.uColors.value);
       if (burst > 0.3 && Math.random() < 0.5) sparks.burst(_v.copy(chest).add(_w.randomDirection().multiplyScalar(0.2)), eu.uColors.value[Math.floor(Math.random() * 5)], 3);
       sparks.update(dt);
       // flare strength follows how directly you look at the incoming torrent, and the arrival intensity
@@ -1377,8 +1479,8 @@ renderer.setAnimationLoop((ts, frame) => {
   fwd.set(0, 0, -1).applyQuaternion(headQ);
   _ref.set(fwd.x, 0, fwd.z);
   if (_ref.lengthSq() > 1e-4) fwdYaw.copy(_ref.normalize());
-  if (PHANTOM_MODE) chest.copy(PHANTOM).add(new THREE.Vector3(0, -0.42, 0.0)).addScaledVector(new THREE.Vector3(0, 0, -1), 0.12);
-  else chest.copy(head).add(new THREE.Vector3(0, -0.42, 0)).addScaledVector(fwdYaw, 0.12);
+  if (PHANTOM_MODE) chest.copy(PHANTOM).add(new THREE.Vector3(0, -0.23, 0.0)).addScaledVector(new THREE.Vector3(0, 0, -1), 0.15);
+  else chest.copy(head).add(new THREE.Vector3(0, -0.23, 0)).addScaledVector(fwdYaw, 0.15);
 
   if (!started) {
     started = true;
@@ -1408,6 +1510,7 @@ renderer.setAnimationLoop((ts, frame) => {
   }
   panel.setHover(new Set(_hov));
 
+  handsNow = readHands();
   let level = 0;
   for (let i = flows.length - 1; i >= 0; i--) {
     const f = flows[i];
