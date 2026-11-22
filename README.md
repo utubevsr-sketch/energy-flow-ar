@@ -116,6 +116,116 @@ Screenshots are in [`screenshots/`](screenshots/).
 - The hand menu opens when the left palm faces your eyes (within about 50°) for 0.3 s, sits about 12 cm above the hand at 0.28 m wide, and closes 0.5 s after you turn away.
 - The flare peaks at about 35% wash and settles to about 10%.
 
+## Glossary of divine names
+
+Every name in the code that the app defines itself is a divine name. That covers variables, functions, shader values and its own object keys. Three.js, WebXR, browser and GLSL names cannot change, so they stay as they are. The quality data, the text you see, the URL parameters and the saved settings are also unchanged. The full list (543 names) is at the top of [`main.js`](main.js). The main parts are:
+
+| Divine name | Was | What it does |
+| --- | --- | --- |
+| `Ganga` | `Flow` | one energy flow (class): the torrent from a surface to you |
+| `triveni` | `flows` | all live flows |
+| `vishnupadi` | `castFlow` | casts a new flow from a surface point (Ganga springs from Vishnu's foot) |
+| `rudra` | `clearFlows` | fades out every flow |
+| `varna` | `palette` | the shared quality palette (5 colours) that tints every layer |
+| `gunanidhi` | `selectedQualities` | the selected quality or the whole set |
+| `GUNASAGARA` | `QUALITY_SETS` | the 5 sets of 24 qualities and colours, from Puja VR |
+| `MAHAVIRYA` | `INTENSITIES` | Gentle / Strong / Torrent settings |
+| `SHARANAGATI` | `RECEIVE` | Receive into: Auto / Heart / Palms labels |
+| `TRIMURTI` | `MAX_FLOWS` | most flows at once (3) |
+| `sankalpa` | `state` | the menu choices, saved in localStorage (its keys are unchanged) |
+| `smarana` | `save` | saves the menu choices |
+| `shruti` | `params` | URL parameters |
+| `vishvakarma` | `renderer` | the WebGL renderer (the divine architect) |
+| `vishvarupa` | `scene` | the scene: the whole visible universe |
+| `sahasraksha` | `camera` | the camera (Indra, the thousand-eyed) |
+| `kalachakra` | `clock` | the frame clock |
+| `mahakala` | `clockNow` | app time in seconds |
+| `POORNAM` | `TAU` | 2 pi, the full circle |
+| `HIRANYAGARBHA` | `PHI` | the golden ratio |
+| `SURYANARAYANA` | `GOLDEN_ANGLE` | the golden angle, 137.5 degrees |
+| `URDHVAGA` | `UP` | the up vector |
+| `shanta` | `smooth` | smoothstep in JavaScript |
+| `PRAKASHA` | `GLOW_BLEND` | additive-light blending settings for passthrough |
+| `MAYA` | `NOISE` | GLSL noise functions |
+| `GANGOTRI` | `FLOW` | GLSL shared by every flow layer: uniforms, path, funnel radius, colours |
+| `BHAGIRATHI` | `FLOW_POS` | GLSL particle position along the flow |
+| `jahnavi` | `streakGeos` | instanced streak geometry, one per intensity |
+| `alakananda` | `streakMat` | material of the torrent streak particles |
+| `shesha` | `tubeGeo` | the tube grid used by the core beam and sheath |
+| `jyoti` | `coreMat` | the white-hot core beam |
+| `kavachadhara` | `sheathMat` | the hurricane wall sheath |
+| `mayadevi` | `hazeMat` | soft haze billboards in the funnel |
+| `sudarshana` | `diskMat` | the vortex disk on the surface |
+| `hridayeshvara` | `chestMat` | the impact glow at the heart or palms |
+| `setubandha` | `bez` | point on the flow's curve |
+| `margadarshi` | `bezT` | direction of the flow's curve |
+| `chakradhara` | `funnelR` | hurricane funnel radius along the flow |
+| `varnadhara` | `colorAt` | palette colour by index (GLSL) |
+| `varnamala` | `colorSmooth` | blended palette colour (GLSL) |
+| `pravaha` | `flowPos` | where a torrent particle is (GLSL) |
+| `avatarana` | `arrPos` | where a pass-through particle is (GLSL) |
+| `mayapati` | `fbmP` | wrapping fractal noise (GLSL) |
+| `mayini` | `vnoiseP` | wrapping value noise (GLSL) |
+| `chitragupta` | `hash12` | hash (GLSL) |
+| `shakti` | `empower` | the arrival / empowerment stage |
+| `parashakti` | `eu` | uniforms shared by the arrival effects |
+| `SHAKTIPEETHA` | `EMP_COMMON` | GLSL shared by the arrival effects |
+| `avatara` | `arrivalMesh` | particles passing through you into the body swirl |
+| `avataradhara` | `arrivalGeo` | their instanced geometry |
+| `tejomaya` | `aura` | the body aura shells |
+| `tejasvi` | `auraMat` | aura shell material |
+| `damaru` | `shock` | the crescendo shockwave at chest height |
+| `damarudhara` | `shockFloor` | the shockwave on the floor |
+| `nataraja` | `shockMat` | shockwave material |
+| `natesha` | `shockFloorMat` | floor shockwave material |
+| `vajra` | `bolts` | the lightning system |
+| `indra` | `bolt` | builds one jagged branching bolt |
+| `agni` | `sparks` | sparks and embers |
+| `hastajyoti` | `handGlow` | glow on fingertips and palms |
+| `kripa` | `handMotes` | motes drawn into the palms and up the forearms |
+| `panduranga` | `xrHands` | the two WebXR hands |
+| `hastamalaka` | `readHands` | reads tracked hands: palm, normal, wrist, forearm, tips |
+| `abhaya` | `demoHands` | stand-in hands for the desktop demo |
+| `varadahasta` | `menuDemoHand` | stand-in left palm for ?demo=menu |
+| `hastadvaya` | `handsNow` | tracked hands this frame |
+| `pratigraha` | `receivingNow` | which hand received the flow last frame |
+| `surya` | `flare` | head-locked flare and bloom overlay |
+| `purusha` | `phantomBody` | translucent stand-in body for the demo |
+| `shaktimandala` | `empowerGroup` | group of the arrival effects |
+| `hridaya` | `chest` | the heart target |
+| `sahasrara` | `head` | head (eye) position |
+| `sahasraradisha` | `headQ` | head orientation |
+| `purvadisha` | `fwd` | where you look |
+| `purvottara` | `fwdYaw` | where you look, level |
+| `NARAYANA` | `PHANTOM` | the stand-in person's eyes in the demo |
+| `saraswati` | `panel` | the menu panel |
+| `jagadguru` | `menuHint` | the floating 'turn your left palm' hint |
+| `chakrapani` | `pointers` | the two hand pointers (ray + reticle) |
+| `mushika` | `mouse` | the desktop mouse pointer (Ganesha's mouse) |
+| `lakshya` | `aim` | aims a pointer: panel, surface or air |
+| `ashirvada` | `onSelect` | handles a pinch or click |
+| `bindu` | `makeReticle` | builds the glowing reticle ring |
+| `tarjani` | `makePointer` | builds a pointer |
+| `drishti` | `raycaster` | raycaster |
+| `nadabrahma` | `audio` | all sound |
+| `vastu` | `room` | the desktop stand-in room |
+| `vastupurusha` | `roomMat` | room grid material |
+| `leela` | `startDemo` | sets up ?demo views |
+| `LEELADHARA` | `DEMO` | ?demo is on |
+| `shriyantradhara` | `sacredU` | sacred geometry on/off fade |
+| `lalita` | `sriYantraTex` | Sri Yantra line texture |
+| `kartikeya` | `ringTex` | hexagram / Seed of Life ring texture |
+| `hrishikesha` | `anahataTex` | Anahata (heart) mandala texture |
+| `brahma` | `metatronTex` | Metatron's Cube / Fruit of Life texture |
+| `chitrakara` | `lineTex` | draws a line texture once |
+| `tripurasundari` | `yantraMat` | the Sri Yantra on the source vortex |
+| `sudarshanachakra` | `ringMat` | golden-ratio rings along the torrent |
+| `chakrarupa` | `ringGeo` | instanced ring geometry |
+| `mandaleshvara` | `sacredAround` | Anahata, palm yantras and Metatron's Cube |
+| `SHRICHAKRA` | `SACRED_FRAG` | GLSL glow of the sacred line textures |
+| `yantreshvari` | `plainSacredMat` | material for the sacred textures around you |
+| `dwarakadhisha`, `margabandhu`, `leelamaya` | `#enter`, `#hint`, `.demo` | the Enter AR button, the desktop hint, the demo-mode class |
+
 ## Technical notes
 
 - WebXR `immersive-ar` session with Three.js r160 (vendored in `vendor/three/`). There is no build step, only `index.html` and `main.js`. `main.js` is loaded with a timestamp so the headset never runs a stale copy.

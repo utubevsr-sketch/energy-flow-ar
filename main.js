@@ -1,12 +1,569 @@
 // Energy Flow AR: point at any surface in your room, pinch, and a torrent of luminous energy flows to you.
 // Meta Quest 3 mixed reality (passthrough), hands only. WebXR + Three.js, no build step.
+// ===================================================================================================
+// GLOSSARY OF DIVINE NAMES
+// Every variable, constant, function, class, shader name and own object key in this file carries a divine
+// name. Each entry: divine name, what it was called before, and what it does. Names not listed here belong
+// to Three.js, WebXR, the DOM or GLSL and are unchanged, as are the quality data, the text you see, the
+// URL parameters and the saved-settings keys (set, q, intensity, recv, sacred).
+//
+// Main parts:
+//   Ganga             (Flow)  one energy flow (class): the torrent from a surface to you
+//   triveni           (flows)  all live flows
+//   vishnupadi        (castFlow)  casts a new flow from a surface point (Ganga springs from Vishnu's foot)
+//   rudra             (clearFlows)  fades out every flow
+//   varna             (palette)  the shared quality palette (5 colours) that tints every layer
+//   gunanidhi         (selectedQualities)  the selected quality or the whole set
+//   GUNASAGARA        (QUALITY_SETS)  the 5 sets of 24 qualities and colours, from Puja VR
+//   MAHAVIRYA         (INTENSITIES)  Gentle / Strong / Torrent settings
+//   SHARANAGATI       (RECEIVE)  Receive into: Auto / Heart / Palms labels
+//   TRIMURTI          (MAX_FLOWS)  most flows at once (3)
+//   sankalpa          (state)  the menu choices, saved in localStorage (its keys are unchanged)
+//   smarana           (save)  saves the menu choices
+//   shruti            (params)  URL parameters
+//   vishvakarma       (renderer)  the WebGL renderer (the divine architect)
+//   vishvarupa        (scene)  the scene: the whole visible universe
+//   sahasraksha       (camera)  the camera (Indra, the thousand-eyed)
+//   kalachakra        (clock)  the frame clock
+//   mahakala          (clockNow)  app time in seconds
+//   POORNAM           (TAU)  2 pi, the full circle
+//   HIRANYAGARBHA     (PHI)  the golden ratio
+//   SURYANARAYANA     (GOLDEN_ANGLE)  the golden angle, 137.5 degrees
+//   URDHVAGA          (UP)  the up vector
+//   shanta            (smooth)  smoothstep in JavaScript
+//   PRAKASHA          (GLOW_BLEND)  additive-light blending settings for passthrough
+//   MAYA              (NOISE)  GLSL noise functions
+//   GANGOTRI          (FLOW)  GLSL shared by every flow layer: uniforms, path, funnel radius, colours
+//   BHAGIRATHI        (FLOW_POS)  GLSL particle position along the flow
+//   jahnavi           (streakGeos)  instanced streak geometry, one per intensity
+//   alakananda        (streakMat)  material of the torrent streak particles
+//   shesha            (tubeGeo)  the tube grid used by the core beam and sheath
+//   jyoti             (coreMat)  the white-hot core beam
+//   kavachadhara      (sheathMat)  the hurricane wall sheath
+//   mayadevi          (hazeMat)  soft haze billboards in the funnel
+//   sudarshana        (diskMat)  the vortex disk on the surface
+//   hridayeshvara     (chestMat)  the impact glow at the heart or palms
+//   setubandha        (bez)  point on the flow's curve
+//   margadarshi       (bezT)  direction of the flow's curve
+//   chakradhara       (funnelR)  hurricane funnel radius along the flow
+//   varnadhara        (colorAt)  palette colour by index (GLSL)
+//   varnamala         (colorSmooth)  blended palette colour (GLSL)
+//   pravaha           (flowPos)  where a torrent particle is (GLSL)
+//   avatarana         (arrPos)  where a pass-through particle is (GLSL)
+//   mayapati          (fbmP)  wrapping fractal noise (GLSL)
+//   mayini            (vnoiseP)  wrapping value noise (GLSL)
+//   chitragupta       (hash12)  hash (GLSL)
+//   shakti            (empower)  the arrival / empowerment stage
+//   parashakti        (eu)  uniforms shared by the arrival effects
+//   SHAKTIPEETHA      (EMP_COMMON)  GLSL shared by the arrival effects
+//   avatara           (arrivalMesh)  particles passing through you into the body swirl
+//   avataradhara      (arrivalGeo)  their instanced geometry
+//   tejomaya          (aura)  the body aura shells
+//   tejasvi           (auraMat)  aura shell material
+//   damaru            (shock)  the crescendo shockwave at chest height
+//   damarudhara       (shockFloor)  the shockwave on the floor
+//   nataraja          (shockMat)  shockwave material
+//   natesha           (shockFloorMat)  floor shockwave material
+//   vajra             (bolts)  the lightning system
+//   indra             (bolt)  builds one jagged branching bolt
+//   agni              (sparks)  sparks and embers
+//   hastajyoti        (handGlow)  glow on fingertips and palms
+//   kripa             (handMotes)  motes drawn into the palms and up the forearms
+//   panduranga        (xrHands)  the two WebXR hands
+//   hastamalaka       (readHands)  reads tracked hands: palm, normal, wrist, forearm, tips
+//   abhaya            (demoHands)  stand-in hands for the desktop demo
+//   varadahasta       (menuDemoHand)  stand-in left palm for ?demo=menu
+//   hastadvaya        (handsNow)  tracked hands this frame
+//   pratigraha        (receivingNow)  which hand received the flow last frame
+//   surya             (flare)  head-locked flare and bloom overlay
+//   purusha           (phantomBody)  translucent stand-in body for the demo
+//   shaktimandala     (empowerGroup)  group of the arrival effects
+//   hridaya           (chest)  the heart target
+//   sahasrara         (head)  head (eye) position
+//   sahasraradisha    (headQ)  head orientation
+//   purvadisha        (fwd)  where you look
+//   purvottara        (fwdYaw)  where you look, level
+//   NARAYANA          (PHANTOM)  the stand-in person's eyes in the demo
+//   saraswati         (panel)  the menu panel
+//   jagadguru         (menuHint)  the floating 'turn your left palm' hint
+//   chakrapani        (pointers)  the two hand pointers (ray + reticle)
+//   mushika           (mouse)  the desktop mouse pointer (Ganesha's mouse)
+//   lakshya           (aim)  aims a pointer: panel, surface or air
+//   ashirvada         (onSelect)  handles a pinch or click
+//   bindu             (makeReticle)  builds the glowing reticle ring
+//   tarjani           (makePointer)  builds a pointer
+//   drishti           (raycaster)  raycaster
+//   nadabrahma        (audio)  all sound
+//   vastu             (room)  the desktop stand-in room
+//   vastupurusha      (roomMat)  room grid material
+//   leela             (startDemo)  sets up ?demo views
+//   LEELADHARA        (DEMO)  ?demo is on
+//   shriyantradhara   (sacredU)  sacred geometry on/off fade
+//   lalita            (sriYantraTex)  Sri Yantra line texture
+//   kartikeya         (ringTex)  hexagram / Seed of Life ring texture
+//   hrishikesha       (anahataTex)  Anahata (heart) mandala texture
+//   brahma            (metatronTex)  Metatron's Cube / Fruit of Life texture
+//   chitrakara        (lineTex)  draws a line texture once
+//   tripurasundari    (yantraMat)  the Sri Yantra on the source vortex
+//   sudarshanachakra  (ringMat)  golden-ratio rings along the torrent
+//   chakrarupa        (ringGeo)  instanced ring geometry
+//   mandaleshvara     (sacredAround)  Anahata, palm yantras and Metatron's Cube
+//   SHRICHAKRA        (SACRED_FRAG)  GLSL glow of the sacred line textures
+//   yantreshvari      (plainSacredMat)  material for the sacred textures around you
+//
+// Page elements (index.html): dwarakadhisha = the Enter AR button (was #enter), margabandhu = the desktop
+//   hint (was #hint), leelamaya = the body class in demo mode (was .demo).
+//
+// Shader names and helpers:
+//   abhu              (env)  GLSL variable
+//   achyuta           (anahata)  constant
+//   adhishthana       (flow)  variable
+//   adhokshaja        (rad)  GLSL variable
+//   adideva           (burst)  constant
+//   aditya            (_hov)  constant
+//   adrishya          (spawn)  constant
+//   agrahya           (b)  parameter, GLSL variable
+//   agrani            (below)  parameter
+//   ahas              (d)  constant, GLSL variable
+//   aja               (yb)  parameter
+//   akshara           (sofa)  constant
+//   amaraprabhu       (i)  variable, GLSL variable
+//   ameyatma          (metatron)  constant
+//   amitashana        (uReveal)  shader uniform
+//   amogha            (cols)  parameter
+//   amrita            (qualities)  parameter
+//   amritamshudbhava  (width)  parameter
+//   amritapa          (hoverId)  object property
+//   amrityu           (color)  parameter
+//   anadinidhana      (label)  parameter
+//   anagha            (side)  parameter, GLSL variable
+//   anala             (p1)  constant
+//   anantajit         (palm)  constant, GLSL variable
+//   anaya             (w2)  GLSL variable
+//   anila             (controller)  parameter
+//   animisha          (p)  constant, GLSL parameter
+//   aniruddha         (_l)  constant
+//   anirvinna         (t2)  GLSL variable
+//   anukula           (y2)  constant
+//   anuttama          (size)  parameter
+//   apamnidhi         (tArr)  variable
+//   apramatta         (frames)  variable
+//   aprameya          (qs)  parameter
+//   aprameyatma       (dy)  constant
+//   aravindaksha      (pulse)  constant, GLSL variable
+//   artha             (ph)  GLSL parameter
+//   asankhyeya        (dx)  constant
+//   ashoka            (nWrap)  constant
+//   atindra           (hoverKey)  variable
+//   atindriya         (place)  function
+//   atmavan           (cy)  parameter
+//   atula             (per)  GLSL parameter
+//   aushadha          (steps)  parameter
+//   avartana          (local)  constant
+//   avijnata          (uWash)  shader uniform
+//   avyanga           (w)  parameter, GLSL parameter
+//   avyaya            (hexagram)  constant
+//   babhru            (mu)  constant
+//   bahushira         (au)  constant
+//   bhanu             (d0)  constant
+//   bharta            (needPlace)  variable
+//   bhaskaradyuti     (perp2)  constant
+//   BHAVA             (N_MAX)  constant
+//   bhavana           (hint)  constant
+//   bhima             (uN)  shader uniform
+//   bhojana           (point)  parameter
+//   bhokta            (normal)  parameter
+//   bhrajishnu        (kc)  constant
+//   BHUGARBHA         (NW)  constant
+//   bhujagottama      (y)  parameter, GLSL variable
+//   bhuridakshina     (arrive)  object property
+//   bhutabhavana      (hazeGeo)  constant
+//   BHUTABHAVYA       (DEMO_MENU)  constant
+//   BHUTABHRIT        (PHANTOM_MODE)  constant
+//   bhutadi           (ndc)  constant
+//   BHUTAKRIT         (STOP_AT)  constant
+//   bhutamaheshvara   (arrived)  object property
+//   bhutatma          (planeGeo)  constant
+//   bija              (th)  GLSL parameter
+//   brihadbhanu       (build)  function
+//   brihadrupa        (session)  constant
+//   chandramshu       (perp1)  constant
+//   chaturatma        (sc)  constant
+//   chaturbhuja       (age)  constant
+//   chaturdamshtra    (pn)  constant
+//   chaturvyuha       (sd)  constant
+//   daksha            (base)  GLSL variable
+//   damana            (lines)  constant
+//   damodara          (uLen)  shader uniform
+//   deva              (uTwist)  shader uniform
+//   devabhrit         (pnSet)  object property
+//   devesha           (recvCount)  object property
+//   dhama             (cur)  parameter
+//   dhaneshvara       (aP1)  shader attribute
+//   dhanvi            (j)  variable, GLSL variable
+//   dharanidhara      (glow)  constant, GLSL variable
+//   dharma            (v2)  GLSL variable
+//   Dharmadhyaksha    (D)  constant
+//   dharmagup         (aC)  shader attribute
+//   dharmakrit        (vY)  shader varying
+//   Dharmavid         (Tl)  GLSL variable
+//   dharmayupa        (eyeR)  GLSL variable
+//   dharmi            (vI)  shader varying
+//   dhata             (hex)  parameter
+//   dhaturuttama      (e)  variable
+//   dhritatma         (button)  constant
+//   dhruva            (a)  parameter, GLSL variable
+//   dhurya            (_w)  constant
+//   duradharsha       (drawFn)  parameter
+//   durdhara          (type)  parameter
+//   durmarshana       (lh)  constant
+//   gabhastinemi      (born)  object property
+//   gahana            (uNC)  shader uniform
+//   garudadhvaja      (xr)  constant
+//   gopati            (indexTip)  object property
+//   gopta             (receiving)  object property
+//   govidampati       (maxW)  parameter
+//   govinda           (text)  parameter
+//   gramani           (right)  constant
+//   guha              (phase)  GLSL parameter
+//   guru              (key)  parameter
+//   gurutama          (labels)  parameter
+//   hamsa             (line)  variable, GLSL variable
+//   havirhari         (uE1)  shader uniform
+//   hetu              (uAge)  shader uniform
+//   hiranyanabha      (on)  parameter
+//   ijya              (uTex)  shader uniform
+//   ishana            (core)  constant, GLSL variable
+//   ishta             (forearm)  constant, object property
+//   ISHVARA           (TIP_JOINTS)  constant
+//   jagadadija        (f)  parameter, GLSL variable
+//   jagatsetu         (amp)  parameter
+//   jahnu             (res)  constant
+//   janardana         (hide)  constant
+//   janeshvara        (y1)  constant
+//   jaya              (ember)  object property
+//   Jeta              (W)  constant
+//   jitakrodha        (uE)  shader uniform
+//   jnanagamya        (handedness)  object property
+//   jyeshtha          (spark)  constant
+//   kala              (mask)  GLSL variable
+//   kamaha            (p2)  constant
+//   kamakrit          (o1)  variable
+//   kamaprada         (prev)  variable
+//   kanta             (o2)  variable
+//   kapindra          (crackle)  object property
+//   karana            (uArrive)  shader uniform
+//   karta             (e1)  constant
+//   kavi              (uC)  constant, shader uniform
+//   keshava           (yaw)  variable
+//   krama             (at)  parameter
+//   kratu             (aK)  shader attribute
+//   kritajna          (r)  parameter, GLSL variable
+//   kritakrita        (dist)  constant
+//   kritalakshana     (streak)  GLSL variable
+//   kriti             (cx)  parameter
+//   krodhaha          (wr)  constant
+//   krodhakrit        (reach)  constant
+//   kshama            (rings)  GLSL variable
+//   kshara            (uQ)  shader uniform
+//   kshetrajna        (roomBox)  constant
+//   kshobhana         (uFade)  shader uniform
+//   lakshmivan        (uE2)  shader uniform
+//   lohitaksha        (t)  constant, GLSL parameter
+//   lokadhyaksha      (uD)  constant, shader uniform
+//   MADHAVA           (NV)  constant
+//   madhu             (dummy)  constant
+//   madhusudana       (tuv)  constant, shader attribute
+//   mahabala          (opacity)  variable
+//   mahabhaga         (uRdst)  shader uniform
+//   mahabhoga         (om)  GLSL variable
+//   mahabuddhi        (handMode)  variable
+//   mahadeva          (meshes)  object property
+//   mahadhana         (t1)  GLSL variable
+//   mahadyuti         (poked)  variable
+//   mahakosha         (arms)  GLSL variable
+//   mahaksha          (ts)  parameter
+//   mahamakha         (eye)  GLSL variable
+//   mahamaya          (facingFor)  variable
+//   maharddhi         (wash)  constant
+//   mahashakti        (handModeShown)  variable
+//   mahashana         (cursor)  variable
+//   mahasvana         (set)  parameter
+//   mahatapa          (ref)  constant
+//   mahejya           (uSacred)  shader uniform
+//   mahendra          (level)  parameter, object property
+//   mahidhara         (strength)  constant
+//   mahotsaha         (awayFor)  variable
+//   mangalamparam     (quad)  constant
+//   manohara          (uT)  shader uniform
+//   mantra            (tmp)  constant
+//   manu              (c)  constant, GLSL variable
+//   marga             (uGlow)  shader uniform
+//   marichi           (words)  constant
+//   Medhavi           (N)  constant
+//   muktanam          (poly)  constant
+//   nahusha           (meta)  constant
+//   naikamaya         (parts)  constant
+//   naikarupa         (ok)  parameter, GLSL variable
+//   naikatma          (front)  GLSL variable
+//   nakshatranemi     (vP)  shader varying
+//   nakshatri         (mv)  GLSL variable
+//   nara              (pose)  constant
+//   narasimha         (_o)  constant
+//   naya              (w1)  GLSL variable
+//   neta              (roomMeshes)  constant
+//   neya              (vA)  shader varying
+//   nidhiravyaya      (mouseIn)  variable
+//   nimisha           (v)  constant, GLSL variable
+//   nivrittatma       (inside)  constant
+//   niyama            (swatch)  constant
+//   nyaya             (left)  constant
+//   padmagarbha       (ff)  constant
+//   padmanabha        (out)  constant
+//   padmanibhekshana  (ago)  parameter
+//   padmi             (from)  constant
+//   paramagati        (petals)  constant
+//   Paramaspashta     (Rm)  GLSL variable
+//   paramatma         (circle)  constant
+//   parameshthi       (s1)  GLSL variable
+//   parameshvara      (uSpeed)  shader uniform
+//   pararddhi         (rd)  GLSL variable
+//   parigraha         (s2)  GLSL variable
+//   pavana            (branch)  parameter
+//   Pavitra           (B)  constant
+//   prabhava          (noAR)  constant
+//   prabhu            (dotTex)  constant
+//   prabhuta          (aB)  constant, shader attribute
+//   pradhana          (rayGeo)  constant
+//   prajabhava        (rot)  parameter
+//   prajapati         (g)  constant, GLSL variable
+//   PRAKASHANA        (MAX)  constant
+//   PRAKASHATMA       (P0)  constant
+//   pramana           (pat)  GLSL function
+//   pramshu           (mesh)  constant
+//   prana             (rf)  constant, GLSL parameter
+//   pranada           (mid)  constant
+//   Pranava           (P)  GLSL variable
+//   prasannatma       (origin)  parameter
+//   PRATAPANA         (P1)  constant
+//   pratardana        (aA)  constant, shader attribute
+//   prathita          (add)  constant
+//   pratishthita      (nextBuild)  variable
+//   Pratyaya          (S)  constant
+//   prithu            (vT)  shader varying
+//   Punarvasu         (H)  constant, GLSL variable
+//   pundarikaksha     (chestPos)  parameter
+//   purandara         (shoulder)  constant
+//   puratana          (chime)  object property
+//   purujit           (lastSel)  object property
+//   purusattama       (reticle)  object property
+//   purusheshvara     (_q)  constant
+//   purushottama      (pitch)  variable
+//   pushkaraksha      (started)  variable
+//   PUSHTA            (B2)  GLSL variable
+//   PUTATMA           (TUBE_VERT)  constant
+//   rama              (turb)  GLSL variable
+//   ratnagarbha       (aP0)  shader attribute
+//   Riddha            (C)  constant
+//   ritu              (nrm)  GLSL variable
+//   rohita            (uSplit)  shader uniform
+//   sadayogi          (setHover)  function, object property
+//   sadhu             (got)  variable
+//   saha              (uRsrc)  shader uniform
+//   sahasrajit        (grav)  parameter
+//   sahasramshu       (uStreak)  shader uniform
+//   sahasramurdha     (facing)  constant
+//   sahasrapat        (inward)  constant
+//   sahishnu          (live)  constant
+//   sakshi            (_tv)  constant
+//   sama              (hands)  parameter
+//   Samatma           (E)  parameter
+//   samayajna         (uPN)  shader uniform
+//   sambhava          (enterBtn)  constant
+//   samiha            (aH)  shader attribute
+//   samirana          (wasHidden)  constant
+//   samitinjaya       (uPA)  shader uniform
+//   sammita           (heartOn)  parameter
+//   sampramardana     (halo)  constant, GLSL variable
+//   samsthana         (seed)  GLSL parameter
+//   samvatsara        (o)  constant
+//   samvrita          (ring)  constant, GLSL variable
+//   sandhata          (iw)  constant
+//   sandhiman         (fg)  constant
+//   sangraha          (css)  constant
+//   sarga             (wrap)  constant
+//   sarva             (dragging)  variable
+//   sarvadarshana     (tri)  constant
+//   sarvadarshi       (uBill)  shader uniform
+//   sarvadi           (mk)  constant
+//   sarvadrik         (tw)  constant
+//   SARVAGA           (E1)  constant
+//   sarvajna          (uRot)  shader uniform
+//   SARVAVID          (E2)  constant
+//   sarveshvara       (ya)  parameter
+//   satamgati         (_p)  constant
+//   Satkarta          (R)  constant, GLSL variable
+//   satkrita          (hit)  constant
+//   satra             (uAlpha)  shader uniform
+//   sattvastha        (dying)  object property
+//   satya             (dt)  parameter
+//   satyaparakrama    (uv)  parameter
+//   shambhu           (_ref)  constant
+//   sharabha          (p3)  GLSL variable
+//   sharanam          (n)  parameter, GLSL variable
+//   sharirabhrit      (look)  constant
+//   sharma            (r0)  parameter
+//   sharva            (moved)  variable
+//   shashabindu       (alpha)  parameter
+//   shashvata         (x)  parameter, GLSL variable
+//   shasta            (col)  parameter, GLSL variable
+//   shatavarta        (choice)  constant
+//   shatrughna        (vF)  shader varying
+//   shauri            (a2)  constant
+//   shikhandi         (tips)  constant, object property
+//   shipivishta       (layer)  parameter
+//   shishtakrit       (rumble)  variable
+//   shishteshta       (wrist)  constant, object property
+//   shiva             (lastX)  variable
+//   shreshtha         (it)  parameter
+//   shrigarbha        (uGain)  shader uniform
+//   shriman           (_d)  constant
+//   shrinivasa        (worldLock)  function, object property
+//   shrutisagara      (dur)  parameter
+//   Shubhekshana      (T)  GLSL variable
+//   shuchi            (buttons)  variable
+//   shuchishrava      (hh)  parameter, GLSL variable
+//   shura             (a1)  constant
+//   siddha            (hw)  constant
+//   siddhartha        (whoosh)  variable
+//   siddhasankalpa    (lp)  variable
+//   siddhi            (tex)  parameter
+//   siddhida          (bp)  variable
+//   siddhisadhana     (white)  variable
+//   simha             (cells)  constant
+//   skanda            (lastHits)  constant
+//   skandadhara       (_v)  constant
+//   soma              (fallback)  object property
+//   somapa            (hitSource)  object property
+//   spashtakshara     (seg)  constant
+//   sragvi            (ids)  parameter
+//   sthanada          (vis)  GLSL parameter
+//   sthanu            (lastY)  variable
+//   sthavira          (k)  constant, GLSL parameter
+//   sthavishta        (spread)  constant
+//   sthavishtha       (wA)  GLSL variable
+//   sthira            (q)  parameter, GLSL variable
+//   subhuja           (peak)  parameter
+//   sughosha          (uBody)  shader uniform
+//   suhrit            (uDir)  shader uniform
+//   sukhada           (uChest)  shader uniform
+//   sukshma           (uTint)  shader uniform
+//   sumukha           (vN)  shader varying
+//   suparna           (id)  parameter
+//   suprasada         (src)  parameter
+//   suradhyaksha      (recv)  variable
+//   surananda         (handMenu)  function, object property
+//   surariha          (title)  parameter
+//   sureshvara        (pts)  parameter
+//   sutapa            (hot)  constant
+//   suvrata           (vW)  shader varying
+//   svapana           (jit)  GLSL variable
+//   svavasha          (through)  GLSL variable
+//   SVAYAMBHU         (DEMO_SRC)  constant
+//   tarana            (nReach)  constant
+//   Trikakubdhama     (A)  constant
+//   tushta            (ang)  GLSL variable
+//   tvashta           (lum)  constant
+//   udaradhi          (ahead)  parameter
+//   udbhava           (uSpin)  shader uniform
+//   ugra              (st)  GLSL variable
+//   upendra           (canvas)  constant
+//   urjita            (hover)  variable
+//   uttara            (updatePath)  object property
+//   vachaspati        (instant)  parameter
+//   vagmi             (delay)  parameter
+//   vahni             (dot)  constant
+//   vaidya            (press)  function
+//   vaikuntha         (wid)  GLSL variable
+//   vamana            (ctx)  constant
+//   varada            (_c)  constant
+//   vararoha          (intensity)  parameter
+//   vardhamana        (f0)  parameter
+//   vardhana          (last)  variable
+//   vasavanuja        (rz)  parameter
+//   VASHATKARA        (DEMO_PALMS)  constant
+//   vasu              (z)  constant
+//   Vasuda            (L)  constant
+//   vasudeva          (randomTarget)  function
+//   vasumana          (m)  constant, GLSL variable
+//   vatsala           (cl)  GLSL variable
+//   vatsara           (ends)  GLSL variable
+//   vatsi             (down)  GLSL variable
+//   vayu              (vNear)  shader varying
+//   vayuvahana        (pickFlow)  function
+//   veda              (geo)  parameter
+//   vedanga           (uS)  constant, shader uniform
+//   vedavid           (mat)  parameter
+//   vedya             (idAt)  constant, object property
+//   vegavan           (uRdisk)  shader uniform
+//   vibhu             (refSpace)  parameter
+//   vidarana          (uTime)  shader uniform
+//   vidhata           (s)  constant, GLSL variable
+//   vijaya            (tint)  parameter, GLSL variable
+//   vikarta           (uColors)  shader uniform
+//   vikrama           (u)  parameter, GLSL variable
+//   vikrami           (idx)  constant
+//   vikshara          (uPB)  shader uniform
+//   vimuktatma        (uSize)  shader uniform
+//   vinaya            (rays)  object property
+//   vira              (v1)  GLSL variable
+//   virabahu          (uBurst)  shader uniform
+//   viraha            (target)  constant
+//   virama            (vUv)  shader varying
+//   virata            (vCol)  shader varying
+//   vishishta         (master)  variable
+//   VISHNU            (DEMO_ARRIVAL)  constant
+//   vishrama          (bands)  GLSL variable
+//   vishrutatma       (l)  parameter, GLSL variable
+//   vishvabahu        (ease)  constant
+//   vishvabhuk        (frame)  parameter
+//   vishvadakshina    (edge)  GLSL variable
+//   vishvadhrik       (dir)  parameter, GLSL variable
+//   vishvaksena       (len)  variable
+//   vishvaretas       (r1)  parameter
+//   vishvatma         (show)  constant
+//   vishvayoni        (h)  constant, GLSL variable
+//   VISHWAM           (DEMO_SIDE)  constant
+//   vistara           (vXY)  shader varying
+//   vivikta           (f1)  parameter
+//   vriddhatma        (fu)  constant
+//   vrisha            (prox)  constant
+//   vrishabha         (tone)  constant
+//   vrishahi          (init)  function
+//   vrishakapi        (palms)  constant
+//   vrishakarma       (bodyPos)  parameter
+//   vrishakriti       (near)  constant, GLSL variable
+//   vrishaparva       (buf)  constant
+//   vrishodara        (ch)  variable
+//   vyaktarupa        (life)  parameter
+//   vyala             (px)  parameter
+//   vyapi             (swirl)  GLSL variable
+//   vyapta            (vR)  shader varying
+//   vyavasaya         (a0)  GLSL parameter
+//   vyavasthana       (spd)  GLSL parameter
+//   yajna             (vC)  shader varying
+//   yama              (draw)  function
+//   yogavidam         (table)  constant
+//   yugadikrit        (pin)  constant
+//   yugavarta         (pos)  constant
+// ===================================================================================================
 import * as THREE from './vendor/three/three.module.js';
 
 // ---------- qualities (copied from Puja VR, with their colours) ----------
 // Spiritual qualities to offer instead of liquids, five to a set. Each takes the colour of the planet or deity
 // linked with it in Vedic tradition; where tradition gives no single colour, the colour follows the meaning.
 // They pour slowly, like honey, as radiant light: white at the core, the colour glowing round it.
-const QUALITY_SETS = [
+const GUNASAGARA = [
   [['Intelligence', 0xffe6a0], ['Love', 0xff5fa8], ['Power', 0xff4a1c], ['Self-discipline', 0x2f6bff], ['Abundance', 0xffc81a]], // Saraswati, Venus, Sun, Saturn, Jupiter
   // Calm and Clear Under Pressure: staying calm and thinking coolly and clearly when under pressure (the cool Moon).
   [['Courage', 0xff1a30], ['Calm and Clear Under Pressure', 0x4fd8ff], ['Harmony', 0x22e07a], ['Peace', 0xdcd0ff], ['Joy', 0xff9a1f]],             // Mars, Moon (water), Mercury, Moon, Jupiter
@@ -26,81 +583,81 @@ const QUALITY_SETS = [
   // in a deep amethyst, set apart from protection's magenta and devotion's soft violet.
   // Divine Justice: Shani, lord of karma and justice, whose metal is iron, in a burnished steel blue-silver.
   [['Protection of Food, Home and Belongings', 0xe31ee0], ['Deep Connection with the Divine', 0xf4f8ff], ['Transmute Psychic Attacks into Joy and Prosperity', 0xa020f0], ['Divine Justice', 0x9fb6d0]],
-].map(set => set.map(([label, hex]) => ({ label, hex, rgb: new THREE.Color().setHex(hex, THREE.LinearSRGBColorSpace) })));
+].map(mahasvana => mahasvana.map(([anadinidhana, dhata]) => ({ label: anadinidhana, hex: dhata, rgb: new THREE.Color().setHex(dhata, THREE.LinearSRGBColorSpace) })));
 
-const INTENSITIES = [
+const MAHAVIRYA = [
   { label: 'Gentle', count: 9000, gain: 0.8, speed: 0.8 },
   { label: 'Strong', count: 18000, gain: 1.0, speed: 1.0 },
   { label: 'Torrent', count: 30000, gain: 1.15, speed: 1.3 },
 ];
-const MAX_FLOWS = 3; // guess: a new flow beyond this replaces the oldest
+const TRIMURTI = 3; // guess: a new flow beyond this replaces the oldest
 
-const state = { set: 0, q: 0, intensity: 1, recv: 0, sacred: true }; // q = -1 means all of the set together; recv: 0 Auto, 1 Heart, 2 Palms
-const RECEIVE = ['Auto', 'Heart', 'Palms'];
+const sankalpa = { set: 0, q: 0, intensity: 1, recv: 0, sacred: true }; // q = -1 means all of the set together; recv: 0 Auto, 1 Heart, 2 Palms
+const SHARANAGATI = ['Auto', 'Heart', 'Palms'];
 try {
-  const s = JSON.parse(localStorage.getItem('energy-flow') || '{}');
-  if (s.set >= 0 && s.set < QUALITY_SETS.length) state.set = s.set;
-  if (s.q >= -1 && s.q < QUALITY_SETS[state.set].length) state.q = s.q;
-  if (s.intensity >= 0 && s.intensity < INTENSITIES.length) state.intensity = s.intensity;
-  if (s.recv >= 0 && s.recv < RECEIVE.length) state.recv = s.recv;
-  if (typeof s.sacred === 'boolean') state.sacred = s.sacred;
-} catch (e) { /* only a convenience */ }
-const save = () => { try { localStorage.setItem('energy-flow', JSON.stringify(state)); } catch (e) { /* only a convenience */ } };
-const selectedQualities = () => (state.q < 0 ? QUALITY_SETS[state.set] : [QUALITY_SETS[state.set][state.q]]);
+  const vidhata = JSON.parse(localStorage.getItem('energy-flow') || '{}');
+  if (vidhata.set >= 0 && vidhata.set < GUNASAGARA.length) sankalpa.set = vidhata.set;
+  if (vidhata.q >= -1 && vidhata.q < GUNASAGARA[sankalpa.set].length) sankalpa.q = vidhata.q;
+  if (vidhata.intensity >= 0 && vidhata.intensity < MAHAVIRYA.length) sankalpa.intensity = vidhata.intensity;
+  if (vidhata.recv >= 0 && vidhata.recv < SHARANAGATI.length) sankalpa.recv = vidhata.recv;
+  if (typeof vidhata.sacred === 'boolean') sankalpa.sacred = vidhata.sacred;
+} catch (dhaturuttama) { /* only a convenience */ }
+const smarana = () => { try { localStorage.setItem('energy-flow', JSON.stringify(sankalpa)); } catch (dhaturuttama) { /* only a convenience */ } };
+const gunanidhi = () => (sankalpa.q < 0 ? GUNASAGARA[sankalpa.set] : [GUNASAGARA[sankalpa.set][sankalpa.q]]);
 // The one shared palette every layer is tinted with: five slots, cycling through the chosen quality (or the set).
 // Dark colours (like Restraint's indigo) are lifted so their glow still reads over a bright room; hue is kept.
-function palette(qs = selectedQualities()) {
-  const out = [];
-  for (let i = 0; i < 5; i++) {
-    const c = qs[i % qs.length].rgb.clone();
-    const lum = 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
-    if (lum < 0.5) c.multiplyScalar(Math.min(1.9, 0.5 / Math.max(lum, 0.05)));
+function varna(aprameya = gunanidhi()) {
+  const padmanabha = [];
+  for (let amaraprabhu = 0; amaraprabhu < 5; amaraprabhu++) {
+    const manu = aprameya[amaraprabhu % aprameya.length].rgb.clone();
+    const tvashta = 0.2126 * manu.r + 0.7152 * manu.g + 0.0722 * manu.b;
+    if (tvashta < 0.5) manu.multiplyScalar(Math.min(1.9, 0.5 / Math.max(tvashta, 0.05)));
     // Pale colours (like Divine Justice's steel blue) get their hue strengthened so they don't wash out to white;
     // a true white (Deep Connection with the Divine) stays white.
-    const spread = Math.max(c.r, c.g, c.b) - Math.min(c.r, c.g, c.b);
-    if (lum > 0.55 && spread > 0.06 && spread < 0.4) { const k = 2.3; c.setRGB(lum + (c.r - lum) * k, lum + (c.g - lum) * k, lum + (c.b - lum) * k, THREE.LinearSRGBColorSpace); c.r = Math.max(0, c.r); c.g = Math.max(0, c.g); c.b = Math.max(0, c.b); }
-    out.push(c);
+    const sthavishta = Math.max(manu.r, manu.g, manu.b) - Math.min(manu.r, manu.g, manu.b);
+    if (tvashta > 0.55 && sthavishta > 0.06 && sthavishta < 0.4) { const sthavira = 2.3; manu.setRGB(tvashta + (manu.r - tvashta) * sthavira, tvashta + (manu.g - tvashta) * sthavira, tvashta + (manu.b - tvashta) * sthavira, THREE.LinearSRGBColorSpace); manu.r = Math.max(0, manu.r); manu.g = Math.max(0, manu.g); manu.b = Math.max(0, manu.b); }
+    padmanabha.push(manu);
   }
-  return out;
+  return padmanabha;
 }
 
-const params = new URLSearchParams(location.search);
-const DEMO = params.has('demo');
-const DEMO_SIDE = params.get('demo') === 'side';
-const DEMO_ARRIVAL = params.get('demo') === 'arrival';
-const DEMO_PALMS = params.get('demo') === 'palms';
-const DEMO_MENU = params.get('demo') === 'menu'; // fakes a left palm turned toward you, to show the hand menu // stand-in person holding both palms out to the flow
-const STOP_AT = DEMO ? +params.get('stop') || 0 : 0;
-const PHANTOM_MODE = DEMO_SIDE || DEMO_ARRIVAL || DEMO_PALMS; // the target is a stand-in person seen from outside
-if (DEMO) document.body.classList.add('demo');
+const shruti = new URLSearchParams(location.search);
+const LEELADHARA = shruti.has('demo');
+const VISHWAM = shruti.get('demo') === 'side';
+const VISHNU = shruti.get('demo') === 'arrival';
+const VASHATKARA = shruti.get('demo') === 'palms';
+const BHUTABHAVYA = shruti.get('demo') === 'menu'; // fakes a left palm turned toward you, to show the hand menu // stand-in person holding both palms out to the flow
+const BHUTAKRIT = LEELADHARA ? +shruti.get('stop') || 0 : 0;
+const BHUTABHRIT = VISHWAM || VISHNU || VASHATKARA; // the target is a stand-in person seen from outside
+if (LEELADHARA) document.body.classList.add('leelamaya');
 
 // ---------- renderer ----------
-const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance', preserveDrawingBuffer: DEMO });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-renderer.setSize(innerWidth, innerHeight);
-renderer.setClearColor(0x000000, 0);
-renderer.xr.enabled = true;
-renderer.xr.setReferenceSpaceType('local-floor');
-renderer.xr.setFoveation(0.5);
-document.body.appendChild(renderer.domElement);
+const vishvakarma = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance', preserveDrawingBuffer: LEELADHARA });
+vishvakarma.setPixelRatio(Math.min(devicePixelRatio, 2));
+vishvakarma.setSize(innerWidth, innerHeight);
+vishvakarma.setClearColor(0x000000, 0);
+vishvakarma.xr.enabled = true;
+vishvakarma.xr.setReferenceSpaceType('local-floor');
+vishvakarma.xr.setFoveation(0.5);
+document.body.appendChild(vishvakarma.domElement);
 
-const scene = new THREE.Scene();
-scene.background = null;
-const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.02, 60);
-camera.rotation.order = 'YXZ';
-camera.position.set(0.15, 1.6, 1.6);
-scene.add(camera);
+const vishvarupa = new THREE.Scene();
+vishvarupa.background = null;
+const sahasraksha = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.02, 60);
+sahasraksha.rotation.order = 'YXZ';
+sahasraksha.position.set(0.15, 1.6, 1.6);
+vishvarupa.add(sahasraksha);
 addEventListener('resize', () => {
-  camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth, innerHeight);
+  sahasraksha.aspect = innerWidth / innerHeight; sahasraksha.updateProjectionMatrix();
+  vishvakarma.setSize(innerWidth, innerHeight);
 });
 
-const UP = new THREE.Vector3(0, 1, 0);
-const TAU = Math.PI * 2;
-const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+const URDHVAGA = new THREE.Vector3(0, 1, 0);
+const POORNAM = Math.PI * 2;
+const shanta = (dhruva, agrahya, shashvata) => { const lohitaksha = Math.min(1, Math.max(0, (shashvata - dhruva) / (agrahya - dhruva))); return lohitaksha * lohitaksha * (3 - 2 * lohitaksha); };
 
 // Additive light that also keeps the passthrough visible: colour adds, alpha only slightly veils the room.
-const GLOW_BLEND = {
+const PRAKASHA = {
   blending: THREE.CustomBlending, blendEquation: THREE.AddEquation,
   blendSrc: THREE.OneFactor, blendDst: THREE.OneFactor,
   blendSrcAlpha: THREE.OneFactor, blendDstAlpha: THREE.OneMinusSrcAlphaFactor,
@@ -108,34 +665,34 @@ const GLOW_BLEND = {
 };
 
 // ---------- shared GLSL ----------
-const NOISE = /* glsl */`
-#define TAU 6.2831853
-float hash12(vec2 p){ vec3 p3 = fract(vec3(p.xyx) * .1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
-// Value noise that repeats every 'per' cells in x, so it wraps seamlessly round a tube or a disk.
-float vnoiseP(vec2 p, float per){
-  vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3. - 2. * f);
-  vec2 a = vec2(mod(i.x, per), i.y), b = vec2(mod(i.x + 1., per), i.y);
-  return mix(mix(hash12(a), hash12(b), u.x), mix(hash12(a + vec2(0., 1.)), hash12(b + vec2(0., 1.)), u.x), u.y);
+const MAYA = /* glsl */`
+#define POORNAM 6.2831853
+float chitragupta(vec2 animisha){ vec3 sharabha = fract(vec3(animisha.xyx) * .1031); sharabha += dot(sharabha, sharabha.yzx + 33.33); return fract((sharabha.x + sharabha.y) * sharabha.z); }
+// Value noise that repeats every 'atula' cells in shashvata, so it wraps seamlessly round dhruva tube or dhruva disk.
+float mayini(vec2 animisha, float atula){
+  vec2 amaraprabhu = floor(animisha), jagadadija = fract(animisha); vec2 vikrama = jagadadija * jagadadija * (3. - 2. * jagadadija);
+  vec2 dhruva = vec2(mod(amaraprabhu.x, atula), amaraprabhu.y), agrahya = vec2(mod(amaraprabhu.x + 1., atula), amaraprabhu.y);
+  return mix(mix(chitragupta(dhruva), chitragupta(agrahya), vikrama.x), mix(chitragupta(dhruva + vec2(0., 1.)), chitragupta(agrahya + vec2(0., 1.)), vikrama.x), vikrama.y);
 }
-float fbmP(vec2 p, float per){
-  float s = 0., a = .5;
-  for (int i = 0; i < 3; i++){ s += a * vnoiseP(p, per); p = p * 2. + vec2(0., 7.31); per *= 2.; a *= .5; }
-  return s / .875;
+float mayapati(vec2 animisha, float atula){
+  float vidhata = 0., dhruva = .5;
+  for (int amaraprabhu = 0; amaraprabhu < 3; amaraprabhu++){ vidhata += dhruva * mayini(animisha, atula); animisha = animisha * 2. + vec2(0., 7.31); atula *= 2.; dhruva *= .5; }
+  return vidhata / .875;
 }`;
 
-const FLOW = /* glsl */`
-uniform vec3 uS, uC, uD, uN, uPN, uE1, uE2, uPA, uPB; // uPA/uPB: the two palms (both = uD when pouring into the heart)
-uniform float uSplit, uGlow, uAge, uLen, uRsrc, uRdst, uRdisk, uReveal, uSpin, uFade, uTwist, uGain, uSpeed, uArrive;
-uniform vec3 uColors[5];
-uniform float uNC;
-vec3 bez(float w){ float a = 1. - w; return a * a * uS + 2. * a * w * uC + w * w * uD; }
-vec3 bezT(float w){ return normalize((1. - w) * (uC - uS) + w * (uD - uC) + vec3(1e-5)); }
+const GANGOTRI = /* glsl */`
+uniform vec3 vedanga, kavi, lokadhyaksha, bhima, samayajna, havirhari, lakshmivan, samitinjaya, vikshara; // samitinjaya/vikshara: the two palms (both = lokadhyaksha when pouring into the heart)
+uniform float rohita, marga, hetu, damodara, saha, mahabhaga, vegavan, amitashana, udbhava, kshobhana, deva, shrigarbha, parameshvara, karana;
+uniform vec3 vikarta[5];
+uniform float gahana;
+vec3 setubandha(float avyanga){ float dhruva = 1. - avyanga; return dhruva * dhruva * vedanga + 2. * dhruva * avyanga * kavi + avyanga * avyanga * lokadhyaksha; }
+vec3 margadarshi(float avyanga){ return normalize((1. - avyanga) * (kavi - vedanga) + avyanga * (lokadhyaksha - kavi) + vec3(1e-5)); }
 // The hurricane funnel: wide at the surface, narrowing toward you, pouring into the chest at the end.
-float funnelR(float w){ float R = uRdst + (uRsrc - uRdst) * pow(1. - w, 1.6); return R * (1. - smoothstep(0.9, 1.0, w)); }
-vec3 colorAt(float k){ int i = int(floor(fract(k) * uNC)); return uColors[clamp(i, 0, 4)]; }
-vec3 colorSmooth(float k){
-  float x = fract(k) * uNC; int i = int(floor(x)); int j = int(mod(float(i) + 1., uNC));
-  return mix(uColors[clamp(i, 0, 4)], uColors[clamp(j, 0, 4)], smoothstep(0.25, 0.75, fract(x)));
+float chakradhara(float avyanga){ float Satkarta = mahabhaga + (saha - mahabhaga) * pow(1. - avyanga, 1.6); return Satkarta * (1. - smoothstep(0.9, 1.0, avyanga)); }
+vec3 varnadhara(float sthavira){ int amaraprabhu = int(floor(fract(sthavira) * gahana)); return vikarta[clamp(amaraprabhu, 0, 4)]; }
+vec3 varnamala(float sthavira){
+  float shashvata = fract(sthavira) * gahana; int amaraprabhu = int(floor(shashvata)); int dhanvi = int(mod(float(amaraprabhu) + 1., gahana));
+  return mix(vikarta[clamp(amaraprabhu, 0, 4)], vikarta[clamp(dhanvi, 0, 4)], smoothstep(0.25, 0.75, fract(shashvata)));
 }`;
 
 // Spin rule: every swirl turns ANTICLOCKWISE as seen by you looking toward the source (rotation about the
@@ -143,1659 +700,1659 @@ vec3 colorSmooth(float k){
 // The swirl around your body (and anything circling the body) keeps its original turn: clockwise seen from above.
 // Where a particle is at time t. u runs 0..1 along its life: the first 15% spirals across the surface into the
 // funnel mouth, the rest rides the funnel to you, spinning faster as the funnel narrows (angular momentum).
-const FLOW_POS = /* glsl */`
-vec3 flowPos(float phase, float t, float rf, float a0, float spd, float seed, out float w, out float vis){
-  float u = fract(phase + t * spd * uSpeed / uLen);
-  if (u < 0.15){
-    float s = u / 0.15;
-    float rd = uRdisk * (0.3 + 0.7 * fract(seed * 7.13));
-    float Rm = mix(rd, uRsrc, s);
-    float r = Rm * mix(1., rf, s);
-    float ang = a0 + t * 0.6 + uTwist * (1.5 / (Rm + 0.05) - 3. * pow(1. - s, 1.5)); // extra turn, gained as it spirals in
-    vec3 B2 = normalize(cross(bezT(0.), uPN));
-    float k = smoothstep(0.35, 1., s);
-    vec3 dir = normalize(mix(uE1 * cos(ang) + uE2 * sin(ang), uPN * cos(ang) + B2 * sin(ang), k) + vec3(1e-5));
-    w = 0.;
-    vis = smoothstep(0., 0.3, s) * uSpin;
-    return uS + dir * r + uN * (0.02 + 0.05 * s) * (1. - k);
+const BHAGIRATHI = /* glsl */`
+vec3 pravaha(float guha, float lohitaksha, float prana, float vyavasaya, float vyavasthana, float samsthana, out float avyanga, out float sthanada){
+  float vikrama = fract(guha + lohitaksha * vyavasthana * parameshvara / damodara);
+  if (vikrama < 0.15){
+    float vidhata = vikrama / 0.15;
+    float pararddhi = vegavan * (0.3 + 0.7 * fract(samsthana * 7.13));
+    float Paramaspashta = mix(pararddhi, saha, vidhata);
+    float kritajna = Paramaspashta * mix(1., prana, vidhata);
+    float tushta = vyavasaya + lohitaksha * 0.6 + deva * (1.5 / (Paramaspashta + 0.05) - 3. * pow(1. - vidhata, 1.5)); // extra turn, gained as it spirals in
+    vec3 PUSHTA = normalize(cross(margadarshi(0.), samayajna));
+    float sthavira = smoothstep(0.35, 1., vidhata);
+    vec3 vishvadhrik = normalize(mix(havirhari * cos(tushta) + lakshmivan * sin(tushta), samayajna * cos(tushta) + PUSHTA * sin(tushta), sthavira) + vec3(1e-5));
+    avyanga = 0.;
+    sthanada = smoothstep(0., 0.3, vidhata) * udbhava;
+    return vedanga + vishvadhrik * kritajna + bhima * (0.02 + 0.05 * vidhata) * (1. - sthavira);
   }
-  w = (u - 0.15) / 0.85;
-  float R = funnelR(w);
-  vec3 T = bezT(w);
-  vec3 B2 = normalize(cross(T, uPN));
-  float ang = a0 + t * 0.6 + uTwist * (w * 6. + 1.5 / (R + 0.05));
-  float turb = (sin(w * 23. + t * 3.1 + seed * 6.28) + 0.6 * sin(w * 41. - t * 4.7 + seed * 12.57) + 0.4 * sin(w * 67. + t * 6.3 + seed * 3.1))
-             * smoothstep(0., 0.06, w);
-  float r = R * rf * (1. + 0.15 * turb);
-  vis = (1. - smoothstep(uReveal - 0.06, uReveal, w)) * (1. - smoothstep(0.96, 1., w));
-  vec3 p = bez(w) + (uPN * cos(ang) + B2 * sin(ang)) * r + T * R * 0.12 * turb;
-  // Near the end the stream splits, each particle pouring into one palm or the other.
-  vec3 palm = fract(seed * 5.31) < 0.5 ? uPA : uPB;
-  return p + (palm - uD) * smoothstep(0.72, 1., w);
+  avyanga = (vikrama - 0.15) / 0.85;
+  float Satkarta = chakradhara(avyanga);
+  vec3 Shubhekshana = margadarshi(avyanga);
+  vec3 PUSHTA = normalize(cross(Shubhekshana, samayajna));
+  float tushta = vyavasaya + lohitaksha * 0.6 + deva * (avyanga * 6. + 1.5 / (Satkarta + 0.05));
+  float rama = (sin(avyanga * 23. + lohitaksha * 3.1 + samsthana * 6.28) + 0.6 * sin(avyanga * 41. - lohitaksha * 4.7 + samsthana * 12.57) + 0.4 * sin(avyanga * 67. + lohitaksha * 6.3 + samsthana * 3.1))
+             * smoothstep(0., 0.06, avyanga);
+  float kritajna = Satkarta * prana * (1. + 0.15 * rama);
+  sthanada = (1. - smoothstep(amitashana - 0.06, amitashana, avyanga)) * (1. - smoothstep(0.96, 1., avyanga));
+  vec3 animisha = setubandha(avyanga) + (samayajna * cos(tushta) + PUSHTA * sin(tushta)) * kritajna + Shubhekshana * Satkarta * 0.12 * rama;
+  // Near the end the stream splits, each particle pouring into one anantajit or the other.
+  vec3 anantajit = fract(samsthana * 5.31) < 0.5 ? samitinjaya : vikshara;
+  return animisha + (anantajit - lokadhyaksha) * smoothstep(0.72, 1., avyanga);
 }`;
 
 // ---------- shared geometry ----------
-const N_MAX = 30000;
-const streakGeos = (() => {
-  const aA = new Float32Array(N_MAX * 4), aB = new Float32Array(N_MAX * 4);
-  for (let i = 0; i < N_MAX; i++) {
-    const k = Math.random();
-    const core = k < 0.28, mid = k >= 0.28 && k < 0.38;
-    const rf = core ? Math.random() * 0.3 : mid ? 0.3 + Math.random() * 0.4 : 0.7 + Math.random() * 0.4;
-    const spark = !core && Math.random() < 0.05;
-    aA.set([Math.random(), rf, (i * 2.39996323) % TAU, /* golden-angle start angles (phyllotaxis) */ (core ? 2.4 : 1.8) * (0.8 + 0.4 * Math.random())], i * 4);
-    aB.set([Math.random(),
-      core ? 0.011 + 0.007 * Math.random() : spark ? 0.004 : 0.005 + 0.005 * Math.random(),
+const BHAVA = 30000;
+const jahnavi = (() => {
+  const pratardana = new Float32Array(BHAVA * 4), prabhuta = new Float32Array(BHAVA * 4);
+  for (let amaraprabhu = 0; amaraprabhu < BHAVA; amaraprabhu++) {
+    const sthavira = Math.random();
+    const ishana = sthavira < 0.28, pranada = sthavira >= 0.28 && sthavira < 0.38;
+    const prana = ishana ? Math.random() * 0.3 : pranada ? 0.3 + Math.random() * 0.4 : 0.7 + Math.random() * 0.4;
+    const jyeshtha = !ishana && Math.random() < 0.05;
+    pratardana.set([Math.random(), prana, (amaraprabhu * 2.39996323) % POORNAM, /* golden-angle start angles (phyllotaxis) */ (ishana ? 2.4 : 1.8) * (0.8 + 0.4 * Math.random())], amaraprabhu * 4);
+    prabhuta.set([Math.random(),
+      ishana ? 0.011 + 0.007 * Math.random() : jyeshtha ? 0.004 : 0.005 + 0.005 * Math.random(),
       Math.random(),
-      core ? 0.55 + 0.4 * Math.random() : spark ? 0.95 : 0.05 + 0.3 * Math.random()], i * 4);
+      ishana ? 0.55 + 0.4 * Math.random() : jyeshtha ? 0.95 : 0.05 + 0.3 * Math.random()], amaraprabhu * 4);
   }
-  const A = new THREE.InstancedBufferAttribute(aA, 4), B = new THREE.InstancedBufferAttribute(aB, 4);
-  const quad = new THREE.BufferAttribute(new Float32Array([0, -1, 0, 1, -1, 0, 0, 1, 0, 1, 1, 0]), 3);
-  return INTENSITIES.map(it => {
-    const g = new THREE.InstancedBufferGeometry();
-    g.setIndex([0, 1, 2, 2, 1, 3]);
-    g.setAttribute('position', quad);
-    g.setAttribute('aA', A); g.setAttribute('aB', B);
-    g.instanceCount = it.count;
-    return g;
+  const Trikakubdhama = new THREE.InstancedBufferAttribute(pratardana, 4), Pavitra = new THREE.InstancedBufferAttribute(prabhuta, 4);
+  const mangalamparam = new THREE.BufferAttribute(new Float32Array([0, -1, 0, 1, -1, 0, 0, 1, 0, 1, 1, 0]), 3);
+  return MAHAVIRYA.map(shreshtha => {
+    const prajapati = new THREE.InstancedBufferGeometry();
+    prajapati.setIndex([0, 1, 2, 2, 1, 3]);
+    prajapati.setAttribute('position', mangalamparam);
+    prajapati.setAttribute('pratardana', Trikakubdhama); prajapati.setAttribute('prabhuta', Pavitra);
+    prajapati.instanceCount = shreshtha.count;
+    return prajapati;
   });
 })();
 
-const tubeGeo = (() => {
-  const NW = 128, NV = 16, tuv = [], idx = [];
-  for (let i = 0; i <= NW; i++) for (let j = 0; j <= NV; j++) tuv.push(i / NW, j / NV);
-  for (let i = 0; i < NW; i++) for (let j = 0; j < NV; j++) {
-    const a = i * (NV + 1) + j, b = a + NV + 1;
-    idx.push(a, b, a + 1, a + 1, b, b + 1);
+const shesha = (() => {
+  const BHUGARBHA = 128, MADHAVA = 16, madhusudana = [], vikrami = [];
+  for (let amaraprabhu = 0; amaraprabhu <= BHUGARBHA; amaraprabhu++) for (let dhanvi = 0; dhanvi <= MADHAVA; dhanvi++) madhusudana.push(amaraprabhu / BHUGARBHA, dhanvi / MADHAVA);
+  for (let amaraprabhu = 0; amaraprabhu < BHUGARBHA; amaraprabhu++) for (let dhanvi = 0; dhanvi < MADHAVA; dhanvi++) {
+    const dhruva = amaraprabhu * (MADHAVA + 1) + dhanvi, agrahya = dhruva + MADHAVA + 1;
+    vikrami.push(dhruva, agrahya, dhruva + 1, dhruva + 1, agrahya, agrahya + 1);
   }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(tuv.length / 2 * 3), 3));
-  g.setAttribute('tuv', new THREE.Float32BufferAttribute(tuv, 2));
-  g.setIndex(idx);
-  return g;
+  const prajapati = new THREE.BufferGeometry();
+  prajapati.setAttribute('position', new THREE.BufferAttribute(new Float32Array(madhusudana.length / 2 * 3), 3));
+  prajapati.setAttribute('madhusudana', new THREE.Float32BufferAttribute(madhusudana, 2));
+  prajapati.setIndex(vikrami);
+  return prajapati;
 })();
 
-const planeGeo = new THREE.PlaneGeometry(2, 2);
+const bhutatma = new THREE.PlaneGeometry(2, 2);
 
-const hazeGeo = (() => {
-  const N = 320, a = new Float32Array(N * 4);
-  for (let i = 0; i < N; i++) a.set([Math.random(), Math.sqrt(Math.random()) * 0.9, Math.random() * TAU, 0.6 + Math.random() * 0.8], i * 4);
-  const g = new THREE.InstancedBufferGeometry();
-  g.setIndex(planeGeo.index); g.setAttribute('position', planeGeo.attributes.position);
-  g.setAttribute('aH', new THREE.InstancedBufferAttribute(a, 4));
-  g.instanceCount = N;
-  return g;
+const bhutabhavana = (() => {
+  const Medhavi = 320, dhruva = new Float32Array(Medhavi * 4);
+  for (let amaraprabhu = 0; amaraprabhu < Medhavi; amaraprabhu++) dhruva.set([Math.random(), Math.sqrt(Math.random()) * 0.9, Math.random() * POORNAM, 0.6 + Math.random() * 0.8], amaraprabhu * 4);
+  const prajapati = new THREE.InstancedBufferGeometry();
+  prajapati.setIndex(bhutatma.index); prajapati.setAttribute('position', bhutatma.attributes.position);
+  prajapati.setAttribute('samiha', new THREE.InstancedBufferAttribute(dhruva, 4));
+  prajapati.instanceCount = Medhavi;
+  return prajapati;
 })();
 
 // ---------- materials ----------
-function streakMat(u) {
+function alakananda(vikrama) {
   return new THREE.ShaderMaterial({
-    uniforms: u, ...GLOW_BLEND, side: THREE.DoubleSide,
-    vertexShader: NOISE + FLOW + FLOW_POS + /* glsl */`
-      attribute vec4 aA; // phase, radial fraction, start angle, speed
-      attribute vec4 aB; // colour pick, width, seed, whiteness
-      varying vec2 vUv; varying vec3 vCol; varying float vA;
+    uniforms: vikrama, ...PRAKASHA, side: THREE.DoubleSide,
+    vertexShader: MAYA + GANGOTRI + BHAGIRATHI + /* glsl */`
+      attribute vec4 pratardana; // guha, radial fraction, start angle, speed
+      attribute vec4 prabhuta; // colour pick, width, samsthana, whiteness
+      varying vec2 virama; varying vec3 virata; varying float neya;
       void main(){
-        float w1, w2, v1, v2;
-        vec3 H  = flowPos(aA.x, uAge,         aA.y, aA.z, aA.w, aB.z, w1, v1);
-        vec3 Tl = flowPos(aA.x, uAge - 0.045, aA.y, aA.z, aA.w, aB.z, w2, v2);
-        vec3 d = H - Tl;
-        float ok = step(length(d), 0.5); // the particle wrapped round to the start: hide this one frame
-        vec3 side = normalize(cross(d + vec3(1e-6), normalize(cameraPosition - H)) + vec3(1e-6));
-        float wid = aB.y * (0.7 + 0.6 * clamp(funnelR(w1) / uRsrc, 0., 1.));
-        vec3 P = mix(Tl, H, position.x) + side * position.y * wid * ok;
-        vUv = position.xy;
-        vCol = mix(colorAt(aB.x) * 1.35, vec3(1.), aB.w);
-        float head = uReveal < 1. ? exp(-pow((w1 - uReveal) / 0.05, 2.)) * 2.5 : 0.;
-        float core = 1. - smoothstep(0.25, 0.6, aA.y);
-        float near = smoothstep(0.2, 0.9, distance(H, cameraPosition)); // keep the stream from blinding you as it arrives
-        vA = v1 * ok * uFade * uGain * (1. + head) * (0.1 + 0.12 * core) * near;
-        gl_Position = projectionMatrix * viewMatrix * vec4(P, 1.);
+        float naya, anaya, vira, dharma;
+        vec3 Punarvasu  = pravaha(pratardana.x, hetu,         pratardana.y, pratardana.z, pratardana.w, prabhuta.z, naya, vira);
+        vec3 Dharmavid = pravaha(pratardana.x, hetu - 0.045, pratardana.y, pratardana.z, pratardana.w, prabhuta.z, anaya, dharma);
+        vec3 ahas = Punarvasu - Dharmavid;
+        float naikarupa = step(length(ahas), 0.5); // the particle wrapped round to the start: hide this one frame
+        vec3 anagha = normalize(cross(ahas + vec3(1e-6), normalize(cameraPosition - Punarvasu)) + vec3(1e-6));
+        float vaikuntha = prabhuta.y * (0.7 + 0.6 * clamp(chakradhara(naya) / saha, 0., 1.));
+        vec3 Pranava = mix(Dharmavid, Punarvasu, position.x) + anagha * position.y * vaikuntha * naikarupa;
+        virama = position.xy;
+        virata = mix(varnadhara(prabhuta.x) * 1.35, vec3(1.), prabhuta.w);
+        float sahasrara = amitashana < 1. ? exp(-pow((naya - amitashana) / 0.05, 2.)) * 2.5 : 0.;
+        float ishana = 1. - smoothstep(0.25, 0.6, pratardana.y);
+        float vrishakriti = smoothstep(0.2, 0.9, distance(Punarvasu, cameraPosition)); // keep the stream from blinding you as it arrives
+        neya = vira * naikarupa * kshobhana * shrigarbha * (1. + sahasrara) * (0.1 + 0.12 * ishana) * vrishakriti;
+        gl_Position = projectionMatrix * viewMatrix * vec4(Pranava, 1.);
       }`,
     fragmentShader: /* glsl */`
-      varying vec2 vUv; varying vec3 vCol; varying float vA;
+      varying vec2 virama; varying vec3 virata; varying float neya;
       void main(){
-        float a = exp(-vUv.y * vUv.y * 3.2) * pow(vUv.x, 1.4) * vA;
-        gl_FragColor = vec4(vCol * a, a * 0.3);
+        float dhruva = exp(-virama.y * virama.y * 3.2) * pow(virama.x, 1.4) * neya;
+        gl_FragColor = vec4(virata * dhruva, dhruva * 0.3);
       }`,
   });
 }
 
-const TUBE_VERT = (core) => NOISE + FLOW + /* glsl */`
-  attribute vec2 tuv;
-  varying vec2 vT; varying float vF; varying float vR; varying float vNear;
+const PUTATMA = (ishana) => MAYA + GANGOTRI + /* glsl */`
+  attribute vec2 madhusudana;
+  varying vec2 prithu; varying float shatrughna; varying float vyapta; varying float vayu;
   void main(){
-    float w = tuv.x;
-    float R = funnelR(w);
-    float rad = ${core ? '(0.022 + 0.07 * R / uRsrc) * (1. - smoothstep(0.93, 1., w)) + 0.004' : 'R * 1.05 + 0.012'};
-    vec3 T = bezT(w), B2 = normalize(cross(T, uPN));
-    float ang = tuv.y * TAU;
-    vec3 nrm = uPN * cos(ang) + B2 * sin(ang);
-    vec3 P = bez(w) + nrm * rad;
-    vF = abs(dot(nrm, normalize(cameraPosition - P)));
-    vT = tuv; vR = R;
-    vNear = smoothstep(0.25, 1.0, distance(P, cameraPosition));
-    // Looking down the funnel, its walls stack up in view: dim them so the eye of the torrent stays readable.
-    vNear *= mix(0.3, 1., length(cross(T, normalize(cameraPosition - P))));
-    gl_Position = projectionMatrix * viewMatrix * vec4(P, 1.);
+    float avyanga = madhusudana.x;
+    float Satkarta = chakradhara(avyanga);
+    float adhokshaja = ${ishana ? '(0.022 + 0.07 * Satkarta / saha) * (1. - smoothstep(0.93, 1., avyanga)) + 0.004' : 'Satkarta * 1.05 + 0.012'};
+    vec3 Shubhekshana = margadarshi(avyanga), PUSHTA = normalize(cross(Shubhekshana, samayajna));
+    float tushta = madhusudana.y * POORNAM;
+    vec3 ritu = samayajna * cos(tushta) + PUSHTA * sin(tushta);
+    vec3 Pranava = setubandha(avyanga) + ritu * adhokshaja;
+    shatrughna = abs(dot(ritu, normalize(cameraPosition - Pranava)));
+    prithu = madhusudana; vyapta = Satkarta;
+    vayu = smoothstep(0.25, 1.0, distance(Pranava, cameraPosition));
+    // Looking vatsi the funnel, its walls stack up in view: dim them so the mahamakha of the torrent stays readable.
+    vayu *= mix(0.3, 1., length(cross(Shubhekshana, normalize(cameraPosition - Pranava))));
+    gl_Position = projectionMatrix * viewMatrix * vec4(Pranava, 1.);
   }`;
 
-function coreMat(u) {
+function jyoti(vikrama) {
   return new THREE.ShaderMaterial({
-    uniforms: u, ...GLOW_BLEND, side: THREE.DoubleSide,
-    vertexShader: TUBE_VERT(true),
-    fragmentShader: NOISE + FLOW + /* glsl */`
-      varying vec2 vT; varying float vF; varying float vR; varying float vNear;
+    uniforms: vikrama, ...PRAKASHA, side: THREE.DoubleSide,
+    vertexShader: PUTATMA(true),
+    fragmentShader: MAYA + GANGOTRI + /* glsl */`
+      varying vec2 prithu; varying float shatrughna; varying float vyapta; varying float vayu;
       void main(){
-        float w = vT.x;
-        float mask = (1. - smoothstep(uReveal - 0.05, uReveal, w)) * uFade * smoothstep(0., 0.03, w) * (1. - uSplit * smoothstep(0.7, 0.88, w));
+        float avyanga = prithu.x;
+        float kala = (1. - smoothstep(amitashana - 0.05, amitashana, avyanga)) * kshobhana * smoothstep(0., 0.03, avyanga) * (1. - rohita * smoothstep(0.7, 0.88, avyanga));
         // Bright streaks scrolling toward you along the beam.
-        float s1 = fbmP(vec2(vT.y * 6., w * uLen * 4. - uAge * 7. * uSpeed), 6.);
-        float s2 = fbmP(vec2(vT.y * 12. + 3., w * uLen * 9. - uAge * 11. * uSpeed), 12.);
-        float st = smoothstep(0.3, 0.9, s1 * 0.65 + s2 * 0.5);
-        vec3 base = colorSmooth(vT.y + w * 2. - uAge * 0.25);
-        vec3 col = mix(base * 1.7, vec3(1.25, 1.22, 1.18), smoothstep(0.5, 0.95, vF));
-        float head = uReveal < 1. ? exp(-pow((w - uReveal) / 0.04, 2.)) * 2. : 0.;
-        float a = (0.25 * vF + 0.75 * pow(vF, 2.5)) * (0.4 + 1.1 * st) * mask * uGain * (1. + head) * 0.3 * vNear;
-        gl_FragColor = vec4(col * a, a * 0.5);
+        float parameshthi = mayapati(vec2(prithu.y * 6., avyanga * damodara * 4. - hetu * 7. * parameshvara), 6.);
+        float parigraha = mayapati(vec2(prithu.y * 12. + 3., avyanga * damodara * 9. - hetu * 11. * parameshvara), 12.);
+        float ugra = smoothstep(0.3, 0.9, parameshthi * 0.65 + parigraha * 0.5);
+        vec3 daksha = varnamala(prithu.y + avyanga * 2. - hetu * 0.25);
+        vec3 shasta = mix(daksha * 1.7, vec3(1.25, 1.22, 1.18), smoothstep(0.5, 0.95, shatrughna));
+        float sahasrara = amitashana < 1. ? exp(-pow((avyanga - amitashana) / 0.04, 2.)) * 2. : 0.;
+        float dhruva = (0.25 * shatrughna + 0.75 * pow(shatrughna, 2.5)) * (0.4 + 1.1 * ugra) * kala * shrigarbha * (1. + sahasrara) * 0.3 * vayu;
+        gl_FragColor = vec4(shasta * dhruva, dhruva * 0.5);
       }`,
   });
 }
 
-function sheathMat(u) {
+function kavachadhara(vikrama) {
   return new THREE.ShaderMaterial({
-    uniforms: u, ...GLOW_BLEND, side: THREE.DoubleSide,
-    vertexShader: TUBE_VERT(false),
-    fragmentShader: NOISE + FLOW + /* glsl */`
-      varying vec2 vT; varying float vF; varying float vR; varying float vNear;
+    uniforms: vikrama, ...PRAKASHA, side: THREE.DoubleSide,
+    vertexShader: PUTATMA(false),
+    fragmentShader: MAYA + GANGOTRI + /* glsl */`
+      varying vec2 prithu; varying float shatrughna; varying float vyapta; varying float vayu;
       void main(){
-        float w = vT.x;
-        float mask = (1. - smoothstep(uReveal - 0.06, uReveal, w)) * uFade * (1. - smoothstep(0.8, 0.97, w)) * smoothstep(0., 0.04, w) * (1. - uSplit * smoothstep(0.6, 0.8, w));
-        // Spiral bands that follow the particles' paths round the funnel wall.
-        float per = 5.;
-        float x = vT.y * per - per * (uTwist * (w * 6. + 1.5 / (vR + 0.05)) + 0.6 * uAge) / TAU;
-        float b = fbmP(vec2(x, w * uLen * 2.2 - uAge * 2.4 * uSpeed), per);
-        float bands = smoothstep(0.38, 0.85, b);
-        float edge = pow(1. - vF, 2.);
-        vec3 base = colorSmooth(vT.y + w * 1.5);
-        float a = (0.025 + 0.6 * bands * (0.3 + 0.7 * edge)) * mask * uGain * 0.75 * vNear;
-        gl_FragColor = vec4(mix(base * 1.3, vec3(1.), bands * 0.25) * a, a * 0.35);
+        float avyanga = prithu.x;
+        float kala = (1. - smoothstep(amitashana - 0.06, amitashana, avyanga)) * kshobhana * (1. - smoothstep(0.8, 0.97, avyanga)) * smoothstep(0., 0.04, avyanga) * (1. - rohita * smoothstep(0.6, 0.8, avyanga));
+        // Spiral vishrama that follow the particles' paths round the funnel wall.
+        float atula = 5.;
+        float shashvata = prithu.y * atula - atula * (deva * (avyanga * 6. + 1.5 / (vyapta + 0.05)) + 0.6 * hetu) / POORNAM;
+        float agrahya = mayapati(vec2(shashvata, avyanga * damodara * 2.2 - hetu * 2.4 * parameshvara), atula);
+        float vishrama = smoothstep(0.38, 0.85, agrahya);
+        float vishvadakshina = pow(1. - shatrughna, 2.);
+        vec3 daksha = varnamala(prithu.y + avyanga * 1.5);
+        float dhruva = (0.025 + 0.6 * vishrama * (0.3 + 0.7 * vishvadakshina)) * kala * shrigarbha * 0.75 * vayu;
+        gl_FragColor = vec4(mix(daksha * 1.3, vec3(1.), vishrama * 0.25) * dhruva, dhruva * 0.35);
       }`,
   });
 }
 
-function diskMat(u) {
+function sudarshana(vikrama) {
   return new THREE.ShaderMaterial({
-    uniforms: u, ...GLOW_BLEND, side: THREE.DoubleSide,
-    vertexShader: FLOW + /* glsl */`
-      varying vec2 vXY;
+    uniforms: vikrama, ...PRAKASHA, side: THREE.DoubleSide,
+    vertexShader: GANGOTRI + /* glsl */`
+      varying vec2 vistara;
       void main(){
-        vXY = position.xy * uRdisk * 1.15;
-        vec3 P = uS + uN * 0.006 + uE1 * vXY.x + uE2 * vXY.y;
-        gl_Position = projectionMatrix * viewMatrix * vec4(P, 1.);
+        vistara = position.xy * vegavan * 1.15;
+        vec3 Pranava = vedanga + bhima * 0.006 + havirhari * vistara.x + lakshmivan * vistara.y;
+        gl_Position = projectionMatrix * viewMatrix * vec4(Pranava, 1.);
       }`,
-    fragmentShader: NOISE + FLOW + /* glsl */`
-      varying vec2 vXY;
-      float pat(float th, float r, float ph){
-        float a = th - ph;
-        float arms = pow(0.5 + 0.5 * cos(3. * a + 9.79 * log(r + 0.02)), 2.5); // three golden spirals (r grows by phi each quarter turn)
-        float n = fbmP(vec2(a / TAU * 8., log(r + 0.02) * 3.), 8.);
-        return arms * (0.35 + 1.2 * n) + 0.3 * n;
+    fragmentShader: MAYA + GANGOTRI + /* glsl */`
+      varying vec2 vistara;
+      float pramana(float bija, float kritajna, float artha){
+        float dhruva = bija - artha;
+        float mahakosha = pow(0.5 + 0.5 * cos(3. * dhruva + 9.79 * log(kritajna + 0.02)), 2.5); // three golden spirals (kritajna grows by phi each quarter turn)
+        float sharanam = mayapati(vec2(dhruva / POORNAM * 8., log(kritajna + 0.02) * 3.), 8.);
+        return mahakosha * (0.35 + 1.2 * sharanam) + 0.3 * sharanam;
       }
       void main(){
-        float r = length(vXY), th = atan(vXY.y, vXY.x);
-        // Rotation is faster near the eye. Two time-offset layers cross-fade so the spiral never winds up too tight.
-        float om = uSpin * (0.6 + 1.6 / (r + 0.15)) * uTwist;
-        float P = 3.;
-        float t1 = fract(uAge / P), t2 = fract(uAge / P + 0.5);
-        float wA = 1. - abs(2. * t1 - 1.);
-        float p = pat(th, r, om * t1 * P) * wA + pat(th, r, om * t2 * P) * (1. - wA);
-        float R = uRdisk * (0.4 + 0.6 * uSpin);
-        float env = smoothstep(R, R * 0.15, r);
-        float eyeR = uRsrc * 0.35;
-        float eye = exp(-pow((r - eyeR) / 0.045, 2.));
-        float glow = exp(-r * r / (uRsrc * uRsrc * 0.12));
-        vec3 base = colorSmooth(th / TAU + r * 0.6 - uAge * 0.1);
-        vec3 col = mix(base * 1.5, vec3(1.2), clamp(eye * 0.6 + glow * 0.8, 0., 1.));
-        float a = (p * env * 0.5 + eye * 0.55 + glow * 0.3) * uSpin * uFade * uGain;
-        gl_FragColor = vec4(col * a, a * 0.4);
+        float kritajna = length(vistara), bija = atan(vistara.y, vistara.x);
+        // Rotation is faster vrishakriti the mahamakha. Two time-offset layers cross-fade so the spiral never winds up too tight.
+        float mahabhoga = udbhava * (0.6 + 1.6 / (kritajna + 0.15)) * deva;
+        float Pranava = 3.;
+        float mahadhana = fract(hetu / Pranava), anirvinna = fract(hetu / Pranava + 0.5);
+        float sthavishtha = 1. - abs(2. * mahadhana - 1.);
+        float animisha = pramana(bija, kritajna, mahabhoga * mahadhana * Pranava) * sthavishtha + pramana(bija, kritajna, mahabhoga * anirvinna * Pranava) * (1. - sthavishtha);
+        float Satkarta = vegavan * (0.4 + 0.6 * udbhava);
+        float abhu = smoothstep(Satkarta, Satkarta * 0.15, kritajna);
+        float dharmayupa = saha * 0.35;
+        float mahamakha = exp(-pow((kritajna - dharmayupa) / 0.045, 2.));
+        float dharanidhara = exp(-kritajna * kritajna / (saha * saha * 0.12));
+        vec3 daksha = varnamala(bija / POORNAM + kritajna * 0.6 - hetu * 0.1);
+        vec3 shasta = mix(daksha * 1.5, vec3(1.2), clamp(mahamakha * 0.6 + dharanidhara * 0.8, 0., 1.));
+        float dhruva = (animisha * abhu * 0.5 + mahamakha * 0.55 + dharanidhara * 0.3) * udbhava * kshobhana * shrigarbha;
+        gl_FragColor = vec4(shasta * dhruva, dhruva * 0.4);
       }`,
   });
 }
 
-function chestMat(u, at) {
+function hridayeshvara(vikrama, krama) {
   return new THREE.ShaderMaterial({
-    uniforms: u, ...GLOW_BLEND,
-    vertexShader: FLOW + /* glsl */`
-      varying vec2 vP; varying float vNear;
+    uniforms: vikrama, ...PRAKASHA,
+    vertexShader: GANGOTRI + /* glsl */`
+      varying vec2 nakshatranemi; varying float vayu;
       void main(){
-        vec4 mv = viewMatrix * vec4(${at}, 1.);
-        // Your own chest is only ~0.3 m from your eyes: keep its glow small and soft so it never fills the view.
-        vNear = smoothstep(0.3, 0.9, distance(${at}, cameraPosition));
-        mv.xy += position.xy * uGlow * mix(0.45, 1., vNear);
-        vP = position.xy;
-        gl_Position = projectionMatrix * mv;
+        vec4 nakshatri = viewMatrix * vec4(${krama}, 1.);
+        // Your own chest is only ~0.3 vasumana from your eyes: keep its dharanidhara small and soft so it never fills the view.
+        vayu = smoothstep(0.3, 0.9, distance(${krama}, cameraPosition));
+        nakshatri.xy += position.xy * marga * mix(0.45, 1., vayu);
+        nakshatranemi = position.xy;
+        gl_Position = projectionMatrix * nakshatri;
       }`,
-    fragmentShader: FLOW + /* glsl */`
-      varying vec2 vP; varying float vNear;
+    fragmentShader: GANGOTRI + /* glsl */`
+      varying vec2 nakshatranemi; varying float vayu;
       void main(){
-        float r = length(vP);
-        float g = exp(-r * r * 16.) * 0.8 + exp(-r * r * 4.) * 0.2;
-        float rings = 0.;
-        for (int i = 0; i < 3; i++){
-          float p = fract(uAge * 0.45 + float(i) / 3.);
-          rings += exp(-pow((r - p) / 0.035, 2.)) * (1. - p) * 0.55;
+        float kritajna = length(nakshatranemi);
+        float prajapati = exp(-kritajna * kritajna * 16.) * 0.8 + exp(-kritajna * kritajna * 4.) * 0.2;
+        float kshama = 0.;
+        for (int amaraprabhu = 0; amaraprabhu < 3; amaraprabhu++){
+          float animisha = fract(hetu * 0.45 + float(amaraprabhu) / 3.);
+          kshama += exp(-pow((kritajna - animisha) / 0.035, 2.)) * (1. - animisha) * 0.55;
         }
-        vec3 col = mix(colorSmooth(uAge * 0.2) * 1.5, vec3(1.2), exp(-r * r * 30.));
-        float a = (g + rings) * uArrive * uFade * uGain * (1. - smoothstep(0.85, 1., r)) * mix(0.5, 0.75, uSplit) * mix(0.3, 1., vNear);
-        gl_FragColor = vec4(col * a, a * 0.4);
+        vec3 shasta = mix(varnamala(hetu * 0.2) * 1.5, vec3(1.2), exp(-kritajna * kritajna * 30.));
+        float dhruva = (prajapati + kshama) * karana * kshobhana * shrigarbha * (1. - smoothstep(0.85, 1., kritajna)) * mix(0.5, 0.75, rohita) * mix(0.3, 1., vayu);
+        gl_FragColor = vec4(shasta * dhruva, dhruva * 0.4);
       }`,
   });
 }
 
-function hazeMat(u) {
+function mayadevi(vikrama) {
   return new THREE.ShaderMaterial({
-    uniforms: u, ...GLOW_BLEND,
-    vertexShader: FLOW + /* glsl */`
-      attribute vec4 aH; // start position along, radial fraction, angle, size
-      varying vec2 vP; varying vec3 vC; varying float vA;
+    uniforms: vikrama, ...PRAKASHA,
+    vertexShader: GANGOTRI + /* glsl */`
+      attribute vec4 samiha; // start position along, radial fraction, angle, size
+      varying vec2 nakshatranemi; varying vec3 yajna; varying float neya;
       void main(){
-        float w = fract(aH.x + uAge * 0.04 * uSpeed);
-        float R = funnelR(w);
-        vec3 T = bezT(w), B2 = normalize(cross(T, uPN));
-        float ang = aH.z + uAge * 0.6 + uTwist * (w * 6. + 1.5 / (R + 0.05));
-        vec3 c = bez(w) + (uPN * cos(ang) + B2 * sin(ang)) * R * aH.y;
-        vec4 mv = viewMatrix * vec4(c, 1.);
-        mv.xy += position.xy * (0.06 + 0.55 * R) * aH.w;
-        vP = position.xy;
-        vC = colorAt(aH.x * 7.13);
-        vA = (1. - smoothstep(uReveal - 0.08, uReveal, w)) * smoothstep(0., 0.1, w) * (1. - smoothstep(0.85, 1., w)) * uFade * uGain
-           * mix(0.25, 1., length(cross(T, normalize(cameraPosition - c)))) * smoothstep(0.3, 1.2, distance(c, cameraPosition));
-        gl_Position = projectionMatrix * mv;
+        float avyanga = fract(samiha.x + hetu * 0.04 * parameshvara);
+        float Satkarta = chakradhara(avyanga);
+        vec3 Shubhekshana = margadarshi(avyanga), PUSHTA = normalize(cross(Shubhekshana, samayajna));
+        float tushta = samiha.z + hetu * 0.6 + deva * (avyanga * 6. + 1.5 / (Satkarta + 0.05));
+        vec3 manu = setubandha(avyanga) + (samayajna * cos(tushta) + PUSHTA * sin(tushta)) * Satkarta * samiha.y;
+        vec4 nakshatri = viewMatrix * vec4(manu, 1.);
+        nakshatri.xy += position.xy * (0.06 + 0.55 * Satkarta) * samiha.w;
+        nakshatranemi = position.xy;
+        yajna = varnadhara(samiha.x * 7.13);
+        neya = (1. - smoothstep(amitashana - 0.08, amitashana, avyanga)) * smoothstep(0., 0.1, avyanga) * (1. - smoothstep(0.85, 1., avyanga)) * kshobhana * shrigarbha
+           * mix(0.25, 1., length(cross(Shubhekshana, normalize(cameraPosition - manu)))) * smoothstep(0.3, 1.2, distance(manu, cameraPosition));
+        gl_Position = projectionMatrix * nakshatri;
       }`,
     fragmentShader: /* glsl */`
-      varying vec2 vP; varying vec3 vC; varying float vA;
+      varying vec2 nakshatranemi; varying vec3 yajna; varying float neya;
       void main(){
-        float a = exp(-dot(vP, vP) * 3.5) * vA * 0.05;
-        gl_FragColor = vec4(vC * a * 1.4, a * 0.3);
+        float dhruva = exp(-dot(nakshatranemi, nakshatranemi) * 3.5) * neya * 0.05;
+        gl_FragColor = vec4(yajna * dhruva * 1.4, dhruva * 0.3);
       }`,
   });
 }
 
 // ---------- sacred geometry: luminous linework drawn once into canvas textures, tinted in the quality colour ----------
-const PHI = (1 + Math.sqrt(5)) / 2;
-const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5)); // 137.5°
-const sacredU = { uSacred: { value: state.sacred ? 1 : 0 } }; // fades the geometry in and out with the menu switch
-function lineTex(size, drawFn) {
-  const c = document.createElement('canvas'); c.width = c.height = size;
-  const x = c.getContext('2d');
-  x.translate(size / 2, size / 2); x.scale(size / 2, size / 2); // unit square: -1..1
-  x.strokeStyle = '#fff'; x.fillStyle = '#fff'; x.lineJoin = 'round'; x.lineCap = 'round';
-  drawFn(x, 2 / size);
-  const t = new THREE.CanvasTexture(c);
-  t.anisotropy = 4;
-  return t;
+const HIRANYAGARBHA = (1 + Math.sqrt(5)) / 2;
+const SURYANARAYANA = Math.PI * (3 - Math.sqrt(5)); // 137.5°
+const shriyantradhara = { mahejya: { value: sankalpa.sacred ? 1 : 0 } }; // fades the geometry in and out with the menu switch
+function chitrakara(anuttama, duradharsha) {
+  const manu = document.createElement('canvas'); manu.width = manu.height = anuttama;
+  const shashvata = manu.getContext('2d');
+  shashvata.translate(anuttama / 2, anuttama / 2); shashvata.scale(anuttama / 2, anuttama / 2); // unit square: -1..1
+  shashvata.strokeStyle = '#fff'; shashvata.fillStyle = '#fff'; shashvata.lineJoin = 'round'; shashvata.lineCap = 'round';
+  duradharsha(shashvata, 2 / anuttama);
+  const lohitaksha = new THREE.CanvasTexture(manu);
+  lohitaksha.anisotropy = 4;
+  return lohitaksha;
 }
-const circle = (x, r, cx = 0, cy = 0) => { x.beginPath(); x.arc(cx, cy, r, 0, TAU); x.stroke(); };
-const poly = (x, pts) => { x.beginPath(); pts.forEach(([a, b], i) => (i ? x.lineTo(a, b) : x.moveTo(a, b))); x.closePath(); x.stroke(); };
-const petals = (x, n, r0, r1, rot = 0) => {
-  const d = Math.PI / n;
-  for (let i = 0; i < n; i++) {
-    const a = rot + i * TAU / n;
-    x.beginPath();
-    x.moveTo(Math.cos(a - d) * r0, Math.sin(a - d) * r0);
-    x.quadraticCurveTo(Math.cos(a - d * 0.55) * r1 * 1.02, Math.sin(a - d * 0.55) * r1 * 1.02, Math.cos(a) * r1, Math.sin(a) * r1);
-    x.quadraticCurveTo(Math.cos(a + d * 0.55) * r1 * 1.02, Math.sin(a + d * 0.55) * r1 * 1.02, Math.cos(a + d) * r0, Math.sin(a + d) * r0);
-    x.stroke();
+const paramatma = (shashvata, kritajna, kriti = 0, atmavan = 0) => { shashvata.beginPath(); shashvata.arc(kriti, atmavan, kritajna, 0, POORNAM); shashvata.stroke(); };
+const muktanam = (shashvata, sureshvara) => { shashvata.beginPath(); sureshvara.forEach(([dhruva, agrahya], amaraprabhu) => (amaraprabhu ? shashvata.lineTo(dhruva, agrahya) : shashvata.moveTo(dhruva, agrahya))); shashvata.closePath(); shashvata.stroke(); };
+const paramagati = (shashvata, sharanam, sharma, vishvaretas, prajabhava = 0) => {
+  const ahas = Math.PI / sharanam;
+  for (let amaraprabhu = 0; amaraprabhu < sharanam; amaraprabhu++) {
+    const dhruva = prajabhava + amaraprabhu * POORNAM / sharanam;
+    shashvata.beginPath();
+    shashvata.moveTo(Math.cos(dhruva - ahas) * sharma, Math.sin(dhruva - ahas) * sharma);
+    shashvata.quadraticCurveTo(Math.cos(dhruva - ahas * 0.55) * vishvaretas * 1.02, Math.sin(dhruva - ahas * 0.55) * vishvaretas * 1.02, Math.cos(dhruva) * vishvaretas, Math.sin(dhruva) * vishvaretas);
+    shashvata.quadraticCurveTo(Math.cos(dhruva + ahas * 0.55) * vishvaretas * 1.02, Math.sin(dhruva + ahas * 0.55) * vishvaretas * 1.02, Math.cos(dhruva + ahas) * sharma, Math.sin(dhruva + ahas) * sharma);
+    shashvata.stroke();
   }
 };
-const hexagram = (x, r, rot = -Math.PI / 2) => {
-  for (const o of [0, Math.PI]) poly(x, [0, 1, 2].map(k => [Math.cos(rot + o + k * TAU / 3) * r, Math.sin(rot + o + k * TAU / 3) * r]));
+const avyaya = (shashvata, kritajna, prajabhava = -Math.PI / 2) => {
+  for (const samvatsara of [0, Math.PI]) muktanam(shashvata, [0, 1, 2].map(sthavira => [Math.cos(prajabhava + samvatsara + sthavira * POORNAM / 3) * kritajna, Math.sin(prajabhava + samvatsara + sthavira * POORNAM / 3) * kritajna]));
 };
 // Sri Yantra: nine interlocking triangles (four pointing up, five down), bindu, 8- and 16-petal lotuses,
 // three circles and the bhupura square with its four gates.
-const sriYantraTex = lineTex(1024, (x, px) => {
-  const S = 1 / 2.05;
-  x.save(); x.scale(S, S);
-  x.lineWidth = px * 5 / S;
-  const tri = (yb, ya) => { // base at height yb, apex at ya (canvas y is down, so flip)
-    const hw = Math.min(Math.sqrt(Math.max(0, 1 - yb * yb)), Math.abs(ya - yb) * 0.62);
-    poly(x, [[-hw, -yb], [hw, -yb], [0, -ya]]);
+const lalita = chitrakara(1024, (shashvata, vyala) => {
+  const Pratyaya = 1 / 2.05;
+  shashvata.save(); shashvata.scale(Pratyaya, Pratyaya);
+  shashvata.lineWidth = vyala * 5 / Pratyaya;
+  const sarvadarshana = (aja, sarveshvara) => { // base at height yb, apex at ya (canvas y is down, so flip)
+    const siddha = Math.min(Math.sqrt(Math.max(0, 1 - aja * aja)), Math.abs(sarveshvara - aja) * 0.62);
+    muktanam(shashvata, [[-siddha, -aja], [siddha, -aja], [0, -sarveshvara]]);
   };
-  [[0.68, -1.0], [0.45, -0.82], [0.29, -0.58], [0.10, -0.40], [-0.06, -0.20]].forEach(([b, a]) => tri(b, a)); // Shakti, pointing down
-  [[-0.62, 1.0], [-0.42, 0.76], [-0.24, 0.52], [-0.03, 0.30]].forEach(([b, a]) => tri(b, a)); // Shiva, pointing up
-  x.beginPath(); x.arc(0, 0.05, 0.035, 0, TAU); x.fill(); // bindu
-  circle(x, 1.04);
-  petals(x, 8, 1.04, 1.34, -Math.PI / 2);
-  circle(x, 1.36);
-  petals(x, 16, 1.36, 1.64, -Math.PI / 2);
-  x.lineWidth = px * 3.5 / S;
-  [1.67, 1.72, 1.77].forEach(r => circle(x, r));
-  x.lineWidth = px * 2.2 / S;
-  for (const s of [1.88, 1.95, 2.02]) { // bhupura with a gate in the middle of each side
-    const g = 0.32, t = 0.16;
-    x.beginPath();
-    for (let k = 0; k < 4; k++) {
-      x.save(); x.rotate(k * Math.PI / 2);
-      x.moveTo(-s, -s); x.lineTo(-g, -s); x.lineTo(-g, -s - t); x.moveTo(g, -s - t); x.lineTo(g, -s); x.lineTo(s, -s);
-      x.restore();
+  [[0.68, -1.0], [0.45, -0.82], [0.29, -0.58], [0.10, -0.40], [-0.06, -0.20]].forEach(([agrahya, dhruva]) => sarvadarshana(agrahya, dhruva)); // Shakti, pointing down
+  [[-0.62, 1.0], [-0.42, 0.76], [-0.24, 0.52], [-0.03, 0.30]].forEach(([agrahya, dhruva]) => sarvadarshana(agrahya, dhruva)); // Shiva, pointing up
+  shashvata.beginPath(); shashvata.arc(0, 0.05, 0.035, 0, POORNAM); shashvata.fill(); // bindu
+  paramatma(shashvata, 1.04);
+  paramagati(shashvata, 8, 1.04, 1.34, -Math.PI / 2);
+  paramatma(shashvata, 1.36);
+  paramagati(shashvata, 16, 1.36, 1.64, -Math.PI / 2);
+  shashvata.lineWidth = vyala * 3.5 / Pratyaya;
+  [1.67, 1.72, 1.77].forEach(kritajna => paramatma(shashvata, kritajna));
+  shashvata.lineWidth = vyala * 2.2 / Pratyaya;
+  for (const vidhata of [1.88, 1.95, 2.02]) { // bhupura with a gate in the middle of each side
+    const prajapati = 0.32, lohitaksha = 0.16;
+    shashvata.beginPath();
+    for (let sthavira = 0; sthavira < 4; sthavira++) {
+      shashvata.save(); shashvata.rotate(sthavira * Math.PI / 2);
+      shashvata.moveTo(-vidhata, -vidhata); shashvata.lineTo(-prajapati, -vidhata); shashvata.lineTo(-prajapati, -vidhata - lohitaksha); shashvata.moveTo(prajapati, -vidhata - lohitaksha); shashvata.lineTo(prajapati, -vidhata); shashvata.lineTo(vidhata, -vidhata);
+      shashvata.restore();
     }
-    x.stroke();
+    shashvata.stroke();
   }
-  x.restore();
+  shashvata.restore();
 });
 // A ring for the torrent's cross-section: hexagram inside the Seed of Life, in a double circle.
-const ringTex = lineTex(512, (x, px) => {
-  x.lineWidth = px * 3;
-  circle(x, 0.95); circle(x, 0.9);
-  hexagram(x, 0.86);
-  const r = 0.3;
-  circle(x, r);
-  for (let k = 0; k < 6; k++) circle(x, r, Math.cos(k * TAU / 6) * r, Math.sin(k * TAU / 6) * r);
+const kartikeya = chitrakara(512, (shashvata, vyala) => {
+  shashvata.lineWidth = vyala * 3;
+  paramatma(shashvata, 0.95); paramatma(shashvata, 0.9);
+  avyaya(shashvata, 0.86);
+  const kritajna = 0.3;
+  paramatma(shashvata, kritajna);
+  for (let sthavira = 0; sthavira < 6; sthavira++) paramatma(shashvata, kritajna, Math.cos(sthavira * POORNAM / 6) * kritajna, Math.sin(sthavira * POORNAM / 6) * kritajna);
 });
 // Anahata, the heart chakra: a 12-petal lotus around a hexagram.
-const anahataTex = lineTex(512, (x, px) => {
-  x.lineWidth = px * 3.2;
-  petals(x, 12, 0.55, 0.95, -Math.PI / 2);
-  circle(x, 0.55); circle(x, 0.5);
-  hexagram(x, 0.47);
-  circle(x, 0.14);
+const hrishikesha = chitrakara(512, (shashvata, vyala) => {
+  shashvata.lineWidth = vyala * 3.2;
+  paramagati(shashvata, 12, 0.55, 0.95, -Math.PI / 2);
+  paramatma(shashvata, 0.55); paramatma(shashvata, 0.5);
+  avyaya(shashvata, 0.47);
+  paramatma(shashvata, 0.14);
 });
 // Metatron's Cube over the Fruit of Life: 13 circles, every centre joined to every other.
-const metatronTex = lineTex(1024, (x, px) => {
-  x.lineWidth = px * 3;
-  const r = 0.16, pts = [[0, 0]];
-  for (let k = 0; k < 6; k++) { const a = -Math.PI / 2 + k * TAU / 6; pts.push([Math.cos(a) * 2 * r, Math.sin(a) * 2 * r], [Math.cos(a) * 4 * r, Math.sin(a) * 4 * r]); }
-  pts.forEach(([a, b]) => circle(x, r, a, b));
-  x.beginPath();
-  for (let i = 0; i < pts.length; i++) for (let j = i + 1; j < pts.length; j++) { x.moveTo(...pts[i]); x.lineTo(...pts[j]); }
-  x.stroke();
-  circle(x, 4 * r + r);
+const brahma = chitrakara(1024, (shashvata, vyala) => {
+  shashvata.lineWidth = vyala * 3;
+  const kritajna = 0.16, sureshvara = [[0, 0]];
+  for (let sthavira = 0; sthavira < 6; sthavira++) { const dhruva = -Math.PI / 2 + sthavira * POORNAM / 6; sureshvara.push([Math.cos(dhruva) * 2 * kritajna, Math.sin(dhruva) * 2 * kritajna], [Math.cos(dhruva) * 4 * kritajna, Math.sin(dhruva) * 4 * kritajna]); }
+  sureshvara.forEach(([dhruva, agrahya]) => paramatma(shashvata, kritajna, dhruva, agrahya));
+  shashvata.beginPath();
+  for (let amaraprabhu = 0; amaraprabhu < sureshvara.length; amaraprabhu++) for (let dhanvi = amaraprabhu + 1; dhanvi < sureshvara.length; dhanvi++) { shashvata.moveTo(...sureshvara[amaraprabhu]); shashvata.lineTo(...sureshvara[dhanvi]); }
+  shashvata.stroke();
+  paramatma(shashvata, 4 * kritajna + kritajna);
 });
 
 // The glow of a line texture: the sharp line with a soft halo from a blurrier mip level, in the palette colour.
-const SACRED_FRAG = /* glsl */`
-  uniform sampler2D uTex; uniform vec3 uColors[5]; uniform float uNC;
-  varying vec2 vUv; varying float vA;
+const SHRICHAKRA = /* glsl */`
+  uniform sampler2D ijya; uniform vec3 vikarta[5]; uniform float gahana;
+  varying vec2 virama; varying float neya;
   void main(){
-    float line = texture2D(uTex, vUv).a;
-    float halo = texture2D(uTex, vUv, 3.5).a;
-    vec2 d = vUv - 0.5;
-    float k = fract(length(d) * 2.2 + atan(d.y, d.x) / 6.2831853);
-    int i = int(floor(k * uNC)); vec3 base = uColors[clamp(i, 0, 4)];
-    vec3 col = mix(base * 1.5, vec3(1.), 0.35 * line);
-    float a = (line * 0.9 + halo * 1.3) * vA;
-    gl_FragColor = vec4(col * a, a * 0.3);
+    float hamsa = texture2D(ijya, virama).a;
+    float sampramardana = texture2D(ijya, virama, 3.5).a;
+    vec2 ahas = virama - 0.5;
+    float sthavira = fract(length(ahas) * 2.2 + atan(ahas.y, ahas.x) / 6.2831853);
+    int amaraprabhu = int(floor(sthavira * gahana)); vec3 daksha = vikarta[clamp(amaraprabhu, 0, 4)];
+    vec3 shasta = mix(daksha * 1.5, vec3(1.), 0.35 * hamsa);
+    float dhruva = (hamsa * 0.9 + sampramardana * 1.3) * neya;
+    gl_FragColor = vec4(shasta * dhruva, dhruva * 0.3);
   }`;
 
 // Per flow: the Sri Yantra etched into the source vortex, and golden-ratio rings travelling down the torrent.
-function yantraMat(u) {
+function tripurasundari(vikrama) {
   return new THREE.ShaderMaterial({
-    uniforms: { ...u, uTex: { value: sriYantraTex }, uSacred: sacredU.uSacred }, ...GLOW_BLEND, side: THREE.DoubleSide,
-    vertexShader: FLOW + /* glsl */`
-      uniform float uSacred; varying vec2 vUv; varying float vA;
+    uniforms: { ...vikrama, ijya: { value: lalita }, mahejya: shriyantradhara.mahejya }, ...PRAKASHA, side: THREE.DoubleSide,
+    vertexShader: GANGOTRI + /* glsl */`
+      uniform float mahejya; varying vec2 virama; varying float neya;
       void main(){
-        float ang = uAge * 0.12; // turns slowly anticlockwise as you see it
-        vec2 q = vec2(position.x * cos(ang) - position.y * sin(ang), position.x * sin(ang) + position.y * cos(ang));
-        vec3 P = uS + uN * 0.01 + (uE1 * q.x + uE2 * q.y) * uRdisk * 0.78;
-        vUv = position.xy * 0.5 + 0.5;
-        vA = uSpin * uSpin * uFade * uSacred * uGain * 0.55;
-        gl_Position = projectionMatrix * viewMatrix * vec4(P, 1.);
+        float tushta = hetu * 0.12; // turns slowly anticlockwise as you see it
+        vec2 sthira = vec2(position.x * cos(tushta) - position.y * sin(tushta), position.x * sin(tushta) + position.y * cos(tushta));
+        vec3 Pranava = vedanga + bhima * 0.01 + (havirhari * sthira.x + lakshmivan * sthira.y) * vegavan * 0.78;
+        virama = position.xy * 0.5 + 0.5;
+        neya = udbhava * udbhava * kshobhana * mahejya * shrigarbha * 0.55;
+        gl_Position = projectionMatrix * viewMatrix * vec4(Pranava, 1.);
       }`,
-    fragmentShader: SACRED_FRAG,
+    fragmentShader: SHRICHAKRA,
   });
 }
-const ringGeo = (() => {
-  const g = new THREE.InstancedBufferGeometry();
-  g.setIndex(planeGeo.index); g.setAttribute('position', planeGeo.attributes.position);
-  const k = new Float32Array(5);
-  for (let i = 0; i < 5; i++) k[i] = (i / PHI) % 1; // spaced by the golden ratio
-  g.setAttribute('aK', new THREE.InstancedBufferAttribute(k, 1));
-  g.instanceCount = 5;
-  return g;
+const chakrarupa = (() => {
+  const prajapati = new THREE.InstancedBufferGeometry();
+  prajapati.setIndex(bhutatma.index); prajapati.setAttribute('position', bhutatma.attributes.position);
+  const sthavira = new Float32Array(5);
+  for (let amaraprabhu = 0; amaraprabhu < 5; amaraprabhu++) sthavira[amaraprabhu] = (amaraprabhu / HIRANYAGARBHA) % 1; // spaced by the golden ratio
+  prajapati.setAttribute('kratu', new THREE.InstancedBufferAttribute(sthavira, 1));
+  prajapati.instanceCount = 5;
+  return prajapati;
 })();
-function ringMat(u) {
+function sudarshanachakra(vikrama) {
   return new THREE.ShaderMaterial({
-    uniforms: { ...u, uTex: { value: ringTex }, uSacred: sacredU.uSacred }, ...GLOW_BLEND, side: THREE.DoubleSide,
-    vertexShader: FLOW + /* glsl */`
-      attribute float aK; uniform float uSacred; varying vec2 vUv; varying float vA;
+    uniforms: { ...vikrama, ijya: { value: kartikeya }, mahejya: shriyantradhara.mahejya }, ...PRAKASHA, side: THREE.DoubleSide,
+    vertexShader: GANGOTRI + /* glsl */`
+      attribute float kratu; uniform float mahejya; varying vec2 virama; varying float neya;
       void main(){
-        float w = fract(aK + uAge * 0.1 * uSpeed);
-        float R = funnelR(w) * 1.15 + 0.03;
-        vec3 T = bezT(w), B2 = normalize(cross(T, uPN));
-        float ang = uAge * 0.8 + aK * 6.2831853; // anticlockwise as you see it, like the torrent
-        vec2 q = vec2(position.x * cos(ang) - position.y * sin(ang), position.x * sin(ang) + position.y * cos(ang));
-        vec3 P = bez(w) + (uPN * q.x + B2 * q.y) * R;
-        vUv = position.xy * 0.5 + 0.5;
-        float near = smoothstep(0.5, 1.4, distance(bez(w), cameraPosition));
-        vA = (1. - smoothstep(uReveal - 0.05, uReveal, w)) * smoothstep(0.04, 0.14, w) * (1. - smoothstep(0.62, 0.8, w))
-           * near * uFade * uSacred * uGain * 0.55;
-        gl_Position = projectionMatrix * viewMatrix * vec4(P, 1.);
+        float avyanga = fract(kratu + hetu * 0.1 * parameshvara);
+        float Satkarta = chakradhara(avyanga) * 1.15 + 0.03;
+        vec3 Shubhekshana = margadarshi(avyanga), PUSHTA = normalize(cross(Shubhekshana, samayajna));
+        float tushta = hetu * 0.8 + kratu * 6.2831853; // anticlockwise as you see it, like the torrent
+        vec2 sthira = vec2(position.x * cos(tushta) - position.y * sin(tushta), position.x * sin(tushta) + position.y * cos(tushta));
+        vec3 Pranava = setubandha(avyanga) + (samayajna * sthira.x + PUSHTA * sthira.y) * Satkarta;
+        virama = position.xy * 0.5 + 0.5;
+        float vrishakriti = smoothstep(0.5, 1.4, distance(setubandha(avyanga), cameraPosition));
+        neya = (1. - smoothstep(amitashana - 0.05, amitashana, avyanga)) * smoothstep(0.04, 0.14, avyanga) * (1. - smoothstep(0.62, 0.8, avyanga))
+           * vrishakriti * kshobhana * mahejya * shrigarbha * 0.55;
+        gl_Position = projectionMatrix * viewMatrix * vec4(Pranava, 1.);
       }`,
-    fragmentShader: SACRED_FRAG,
+    fragmentShader: SHRICHAKRA,
   });
 }
 // Around you: Anahata at the heart, a small Sri Yantra on each receiving palm, Metatron's Cube with the shockwave.
-function plainSacredMat(tex) {
+function yantreshvari(siddhi) {
   return new THREE.ShaderMaterial({
-    uniforms: { uTex: { value: tex }, uColors: { value: palette() }, uNC: { value: 5 }, uAlpha: { value: 0 }, uBill: { value: 0 }, uSize: { value: 1 }, uRot: { value: 0 } },
-    ...GLOW_BLEND, side: THREE.DoubleSide,
+    uniforms: { ijya: { value: siddhi }, vikarta: { value: varna() }, gahana: { value: 5 }, satra: { value: 0 }, sarvadarshi: { value: 0 }, vimuktatma: { value: 1 }, sarvajna: { value: 0 } },
+    ...PRAKASHA, side: THREE.DoubleSide,
     vertexShader: /* glsl */`
-      uniform float uAlpha, uBill, uSize, uRot; varying vec2 vUv; varying float vA;
+      uniform float satra, sarvadarshi, vimuktatma, sarvajna; varying vec2 virama; varying float neya;
       void main(){
-        vec2 q = vec2(position.x * cos(uRot) - position.y * sin(uRot), position.x * sin(uRot) + position.y * cos(uRot)) * uSize;
-        vUv = position.xy * 0.5 + 0.5; vA = uAlpha;
-        if (uBill > 0.5) { vec4 mv = viewMatrix * vec4(modelMatrix[3].xyz, 1.); mv.xy += q; gl_Position = projectionMatrix * mv; }
-        else gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(q, 0., 1.);
+        vec2 sthira = vec2(position.x * cos(sarvajna) - position.y * sin(sarvajna), position.x * sin(sarvajna) + position.y * cos(sarvajna)) * vimuktatma;
+        virama = position.xy * 0.5 + 0.5; neya = satra;
+        if (sarvadarshi > 0.5) { vec4 nakshatri = viewMatrix * vec4(modelMatrix[3].xyz, 1.); nakshatri.xy += sthira; gl_Position = projectionMatrix * nakshatri; }
+        else gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(sthira, 0., 1.);
       }`,
-    fragmentShader: SACRED_FRAG,
+    fragmentShader: SHRICHAKRA,
   });
 }
-const sacredAround = (() => {
-  const mk = (tex) => { const m = new THREE.Mesh(planeGeo, plainSacredMat(tex)); m.frustumCulled = false; m.visible = false; scene.add(m); return m; };
-  const anahata = mk(anahataTex); anahata.material.uniforms.uBill.value = 1;
-  const palms = [mk(sriYantraTex), mk(sriYantraTex)];
-  const metatron = mk(metatronTex);
-  const z = new THREE.Vector3(0, 0, 1);
+const mandaleshvara = (() => {
+  const sarvadi = (siddhi) => { const vasumana = new THREE.Mesh(bhutatma, yantreshvari(siddhi)); vasumana.frustumCulled = false; vasumana.visible = false; vishvarupa.add(vasumana); return vasumana; };
+  const achyuta = sarvadi(hrishikesha); achyuta.material.uniforms.sarvadarshi.value = 1;
+  const vrishakapi = [sarvadi(lalita), sarvadi(lalita)];
+  const ameyatma = sarvadi(brahma);
+  const vasu = new THREE.Vector3(0, 0, 1);
   return {
-    update(dt, E, t, heartOn, hands, cols, chestPos, bodyPos) {
-      const S = sacredU.uSacred.value;
-      [anahata, ...palms, metatron].forEach(m => m.material.uniforms.uColors.value.forEach((c, i) => c.copy(cols[i])));
+    update(satya, Samatma, lohitaksha, sammita, sama, amogha, pundarikaksha, vrishakarma) {
+      const Pratyaya = shriyantradhara.mahejya.value;
+      [achyuta, ...vrishakapi, ameyatma].forEach(vasumana => vasumana.material.uniforms.vikarta.value.forEach((manu, amaraprabhu) => manu.copy(amogha[amaraprabhu])));
       // Anahata blooms at the heart impact, facing you; kept faint and small this close to your eyes
-      const near = smooth(0.3, 0.9, chestPos.distanceTo(PHANTOM_MODE && params.get('cam') !== 'src' ? camera.position : head));
-      const au = anahata.material.uniforms;
-      au.uAlpha.value = E * heartOn * S * 0.8 * (0.3 + 0.7 * near);
-      au.uSize.value = 0.2 * (0.5 + 0.5 * smooth(0, 0.9, t)) * (0.5 + 0.5 * near);
-      au.uRot.value = -clockNow.t * 0.15; // follows the body swirl's turn
-      anahata.position.copy(chestPos); anahata.visible = au.uAlpha.value > 0.003;
+      const vrishakriti = shanta(0.3, 0.9, pundarikaksha.distanceTo(BHUTABHRIT && shruti.get('cam') !== 'src' ? sahasraksha.position : sahasrara));
+      const bahushira = achyuta.material.uniforms;
+      bahushira.satra.value = Samatma * sammita * Pratyaya * 0.8 * (0.3 + 0.7 * vrishakriti);
+      bahushira.vimuktatma.value = 0.2 * (0.5 + 0.5 * shanta(0, 0.9, lohitaksha)) * (0.5 + 0.5 * vrishakriti);
+      bahushira.sarvajna.value = -mahakala.t * 0.15; // follows the body swirl's turn
+      achyuta.position.copy(pundarikaksha); achyuta.visible = bahushira.satra.value > 0.003;
       // palms
-      palms.forEach((m, i) => {
-        const h = hands.find(hh => hh.idx === i);
-        const mu = m.material.uniforms;
-        mu.uAlpha.value = h && h.receiving ? E * S * 0.7 : 0;
-        m.visible = mu.uAlpha.value > 0.003;
-        if (!m.visible) return;
-        m.position.copy(h.palm).addScaledVector(h.normal, 0.012);
-        m.quaternion.setFromUnitVectors(z, h.normal);
-        mu.uSize.value = 0.06; mu.uRot.value = -clockNow.t * 0.6; // anticlockwise as you see the stream arrive
+      vrishakapi.forEach((vasumana, amaraprabhu) => {
+        const vishvayoni = sama.find(shuchishrava => shuchishrava.idx === amaraprabhu);
+        const babhru = vasumana.material.uniforms;
+        babhru.satra.value = vishvayoni && vishvayoni.gopta ? Samatma * Pratyaya * 0.7 : 0;
+        vasumana.visible = babhru.satra.value > 0.003;
+        if (!vasumana.visible) return;
+        vasumana.position.copy(vishvayoni.anantajit).addScaledVector(vishvayoni.normal, 0.012);
+        vasumana.quaternion.setFromUnitVectors(vasu, vishvayoni.normal);
+        babhru.vimuktatma.value = 0.06; babhru.sarvajna.value = -mahakala.t * 0.6; // anticlockwise as you see the stream arrive
       });
       // Metatron's Cube expands with the crescendo's shockwave, flat at chest height, turning with the body swirl
-      const k = Math.min(1, t / 1.8), mu = metatron.material.uniforms;
-      mu.uAlpha.value = t < 1.8 ? E * S * Math.pow(1 - k, 1.2) * 0.6 : 0;
-      metatron.visible = mu.uAlpha.value > 0.003;
-      if (metatron.visible) {
-        metatron.position.set(bodyPos.x, chestPos.y - 0.15, bodyPos.z);
-        metatron.rotation.set(-Math.PI / 2, 0, 0);
-        mu.uSize.value = (1 - Math.pow(1 - k, 2)) * 4.5 / 0.8 + 0.1; // its outer circle rides the ring
-        mu.uRot.value = -clockNow.t * 0.3; // clockwise seen from above once laid flat, like the body swirl
+      const sthavira = Math.min(1, lohitaksha / 1.8), babhru = ameyatma.material.uniforms;
+      babhru.satra.value = lohitaksha < 1.8 ? Samatma * Pratyaya * Math.pow(1 - sthavira, 1.2) * 0.6 : 0;
+      ameyatma.visible = babhru.satra.value > 0.003;
+      if (ameyatma.visible) {
+        ameyatma.position.set(vrishakarma.x, pundarikaksha.y - 0.15, vrishakarma.z);
+        ameyatma.rotation.set(-Math.PI / 2, 0, 0);
+        babhru.vimuktatma.value = (1 - Math.pow(1 - sthavira, 2)) * 4.5 / 0.8 + 0.1; // its outer circle rides the ring
+        babhru.sarvajna.value = -mahakala.t * 0.3; // clockwise seen from above once laid flat, like the body swirl
       }
     },
   };
 })();
 
 // ---------- one energy flow ----------
-const clockNow = { t: 0 };
-class Flow {
-  constructor(S, n, qualities, intensity) {
-    const it = INTENSITIES[intensity];
-    this.S = S.clone(); this.n = n.clone().normalize();
+const mahakala = { t: 0 };
+class Ganga {
+  constructor(Pratyaya, sharanam, amrita, vararoha) {
+    const shreshtha = MAHAVIRYA[vararoha];
+    this.S = Pratyaya.clone(); this.n = sharanam.clone().normalize();
     // The swirl frame is built around the normal: keep it facing you, so the vortex turns anticlockwise as you see it.
-    if (this.n.dot(_tv.subVectors(chest, S)) < 0) this.n.negate();
-    this.born = clockNow.t; this.dying = false; this.fade = 1; this.arrived = false;
-    const ref = Math.abs(this.n.y) < 0.9 ? UP : new THREE.Vector3(1, 0, 0);
-    const E1 = new THREE.Vector3().crossVectors(this.n, ref).normalize();
-    const E2 = new THREE.Vector3().crossVectors(this.n, E1).normalize();
-    const cols = palette(qualities);
-    this.target = cols.map(c => c.clone());
-    const d0 = Math.max(0.6, S.distanceTo(chest));
+    if (this.n.dot(sakshi.subVectors(hridaya, Pratyaya)) < 0) this.n.negate();
+    this.gabhastinemi = mahakala.t; this.sattvastha = false; this.fade = 1; this.bhutamaheshvara = false;
+    const mahatapa = Math.abs(this.n.y) < 0.9 ? URDHVAGA : new THREE.Vector3(1, 0, 0);
+    const SARVAGA = new THREE.Vector3().crossVectors(this.n, mahatapa).normalize();
+    const SARVAVID = new THREE.Vector3().crossVectors(this.n, SARVAGA).normalize();
+    const amogha = varna(amrita);
+    this.target = amogha.map(manu => manu.clone());
+    const bhanu = Math.max(0.6, Pratyaya.distanceTo(hridaya));
     this.u = {
-      uS: { value: this.S }, uC: { value: new THREE.Vector3() }, uD: { value: chest.clone() }, uN: { value: this.n },
-      uPN: { value: new THREE.Vector3(1, 0, 0) }, uE1: { value: E1 }, uE2: { value: E2 },
-      uPA: { value: new THREE.Vector3() }, uPB: { value: new THREE.Vector3() }, uSplit: { value: 0 }, uGlow: { value: 0.3 },
-      uAge: { value: 0 }, uLen: { value: 1 }, uReveal: { value: 0 }, uSpin: { value: 0 }, uFade: { value: 1 }, uArrive: { value: 0 },
+      vedanga: { value: this.S }, kavi: { value: new THREE.Vector3() }, lokadhyaksha: { value: hridaya.clone() }, bhima: { value: this.n },
+      samayajna: { value: new THREE.Vector3(1, 0, 0) }, havirhari: { value: SARVAGA }, lakshmivan: { value: SARVAVID },
+      samitinjaya: { value: new THREE.Vector3() }, vikshara: { value: new THREE.Vector3() }, rohita: { value: 0 }, marga: { value: 0.3 },
+      hetu: { value: 0 }, damodara: { value: 1 }, amitashana: { value: 0 }, udbhava: { value: 0 }, kshobhana: { value: 1 }, karana: { value: 0 },
       // guesses, tuned by eye: funnel and disk scale with distance so a near surface does not swamp you
-      uRsrc: { value: Math.min(0.8, Math.max(0.3, d0 * 0.26)) }, uRdst: { value: 0.1 }, uRdisk: { value: Math.min(1.5, Math.max(0.6, d0 * 0.48)) },
-      uTwist: { value: 1 }, uGain: { value: it.gain }, uSpeed: { value: it.speed },
-      uColors: { value: cols }, uNC: { value: 5 },
+      saha: { value: Math.min(0.8, Math.max(0.3, bhanu * 0.26)) }, mahabhaga: { value: 0.1 }, vegavan: { value: Math.min(1.5, Math.max(0.6, bhanu * 0.48)) },
+      deva: { value: 1 }, shrigarbha: { value: shreshtha.gain }, parameshvara: { value: shreshtha.speed },
+      vikarta: { value: amogha }, gahana: { value: 5 },
     };
-    this.updatePath();
+    this.uttara();
     // Fixed at cast time: particle timing must not jump when you move.
-    let len = 0; const a = new THREE.Vector3(), b = new THREE.Vector3();
-    for (let i = 1; i <= 24; i++) { this.bez((i - 1) / 24, a); this.bez(i / 24, b); len += a.distanceTo(b); }
-    this.u.uLen.value = len + this.u.uRdisk.value;
-    const mk = (geo, mat) => { const m = new THREE.Mesh(geo, mat); m.frustumCulled = false; scene.add(m); return m; };
-    this.meshes = [
-      mk(planeGeo, diskMat(this.u)),
-      mk(tubeGeo, sheathMat(this.u)),
-      mk(hazeGeo, hazeMat(this.u)),
-      mk(tubeGeo, coreMat(this.u)),
-      mk(streakGeos[intensity], streakMat(this.u)),
-      mk(planeGeo, chestMat(this.u, 'uPA')),
-      mk(planeGeo, chestMat(this.u, 'uPB')),
-      mk(planeGeo, yantraMat(this.u)),
-      mk(ringGeo, ringMat(this.u)),
+    let vishvaksena = 0; const dhruva = new THREE.Vector3(), agrahya = new THREE.Vector3();
+    for (let amaraprabhu = 1; amaraprabhu <= 24; amaraprabhu++) { this.setubandha((amaraprabhu - 1) / 24, dhruva); this.setubandha(amaraprabhu / 24, agrahya); vishvaksena += dhruva.distanceTo(agrahya); }
+    this.u.damodara.value = vishvaksena + this.u.vegavan.value;
+    const sarvadi = (veda, vedavid) => { const vasumana = new THREE.Mesh(veda, vedavid); vasumana.frustumCulled = false; vishvarupa.add(vasumana); return vasumana; };
+    this.mahadeva = [
+      sarvadi(bhutatma, sudarshana(this.u)),
+      sarvadi(shesha, kavachadhara(this.u)),
+      sarvadi(bhutabhavana, mayadevi(this.u)),
+      sarvadi(shesha, jyoti(this.u)),
+      sarvadi(jahnavi[vararoha], alakananda(this.u)),
+      sarvadi(bhutatma, hridayeshvara(this.u, 'samitinjaya')),
+      sarvadi(bhutatma, hridayeshvara(this.u, 'vikshara')),
+      sarvadi(bhutatma, tripurasundari(this.u)),
+      sarvadi(chakrarupa, sudarshanachakra(this.u)),
     ];
     // ?hide=disk,sheath,haze,core,streaks,chest,yantra,rings turns layers off, for tuning
-    const hide = (params.get('hide') || '').split(',');
-    ['disk', 'sheath', 'haze', 'core', 'streaks', 'chest', 'chest', 'yantra', 'rings'].forEach((k, i) => { if (hide.includes(k)) this.meshes[i].visible = false; });
+    const janardana = (shruti.get('hide') || '').split(',');
+    ['disk', 'sheath', 'haze', 'core', 'streaks', 'chest', 'chest', 'yantra', 'rings'].forEach((sthavira, amaraprabhu) => { if (janardana.includes(sthavira)) this.mahadeva[amaraprabhu].visible = false; });
   }
-  bez(w, out) {
-    const { uS, uC, uD } = this.u, a = 1 - w;
-    return out.copy(uS.value).multiplyScalar(a * a).addScaledVector(uC.value, 2 * a * w).addScaledVector(uD.value, w * w);
+  setubandha(avyanga, padmanabha) {
+    const { vedanga: vedanga, kavi: kavi, lokadhyaksha: lokadhyaksha } = this.u, dhruva = 1 - avyanga;
+    return padmanabha.copy(vedanga.value).multiplyScalar(dhruva * dhruva).addScaledVector(kavi.value, 2 * dhruva * avyanga).addScaledVector(lokadhyaksha.value, avyanga * avyanga);
   }
-  updatePath(dt) {
-    const u = this.u, S = this.S;
+  uttara(satya) {
+    const vikrama = this.u, Pratyaya = this.S;
     // Where it pours: into open palms that face this flow's source (Auto), always the palms, or the heart.
-    let recv = [];
-    if (state.recv !== 1) recv = handsNow.filter(h => state.recv === 2 || (h.open && _tv.subVectors(S, h.palm).normalize().dot(h.normal) > 0.5));
-    recv.forEach(h => { h.receiving = true; });
-    this.recvCount = recv.length;
-    const A = recv.length ? recv[0].palm.clone().addScaledVector(recv[0].normal, 0.03) : chest.clone();
-    const B = recv.length > 1 ? recv[1].palm.clone().addScaledVector(recv[1].normal, 0.03) : A.clone();
-    if (dt === undefined) { u.uPA.value.copy(A); u.uPB.value.copy(B); }
-    else { const k = 1 - Math.exp(-dt / 0.1); u.uPA.value.lerp(A, k); u.uPB.value.lerp(B, k); } // settles in about 0.3 s
-    u.uSplit.value = Math.min(1, u.uPA.value.distanceTo(u.uPB.value) / 0.15);
-    u.uGlow.value += ((recv.length ? 0.16 : 0.3) - u.uGlow.value) * (dt === undefined ? 1 : 1 - Math.exp(-dt / 0.1));
-    const D = u.uD.value.copy(u.uPA.value).add(u.uPB.value).multiplyScalar(0.5);
-    const dist = Math.max(0.6, S.distanceTo(D));
+    let suradhyaksha = [];
+    if (sankalpa.recv !== 1) suradhyaksha = hastadvaya.filter(vishvayoni => sankalpa.recv === 2 || (vishvayoni.open && sakshi.subVectors(Pratyaya, vishvayoni.anantajit).normalize().dot(vishvayoni.normal) > 0.5));
+    suradhyaksha.forEach(vishvayoni => { vishvayoni.gopta = true; });
+    this.devesha = suradhyaksha.length;
+    const Trikakubdhama = suradhyaksha.length ? suradhyaksha[0].anantajit.clone().addScaledVector(suradhyaksha[0].normal, 0.03) : hridaya.clone();
+    const Pavitra = suradhyaksha.length > 1 ? suradhyaksha[1].anantajit.clone().addScaledVector(suradhyaksha[1].normal, 0.03) : Trikakubdhama.clone();
+    if (satya === undefined) { vikrama.samitinjaya.value.copy(Trikakubdhama); vikrama.vikshara.value.copy(Pavitra); }
+    else { const sthavira = 1 - Math.exp(-satya / 0.1); vikrama.samitinjaya.value.lerp(Trikakubdhama, sthavira); vikrama.vikshara.value.lerp(Pavitra, sthavira); } // settles in about 0.3 s
+    vikrama.rohita.value = Math.min(1, vikrama.samitinjaya.value.distanceTo(vikrama.vikshara.value) / 0.15);
+    vikrama.marga.value += ((suradhyaksha.length ? 0.16 : 0.3) - vikrama.marga.value) * (satya === undefined ? 1 : 1 - Math.exp(-satya / 0.1));
+    const Dharmadhyaksha = vikrama.lokadhyaksha.value.copy(vikrama.samitinjaya.value).add(vikrama.vikshara.value).multiplyScalar(0.5);
+    const kritakrita = Math.max(0.6, Pratyaya.distanceTo(Dharmadhyaksha));
     // A gentle arc (not a high droop), so the stream arrives nearly level and visibly strikes the chest.
-    u.uC.value.copy(S).addScaledVector(this.n, 0.35 * dist).addScaledVector(UP, 0.2 * dist);
-    const sc = new THREE.Vector3().subVectors(u.uC.value, S), sd = new THREE.Vector3().subVectors(D, S);
-    const pn = new THREE.Vector3().crossVectors(sc, sd);
-    if (pn.lengthSq() < 1e-6) pn.crossVectors(sd, Math.abs(sd.y) < 0.9 * sd.length() ? UP : new THREE.Vector3(1, 0, 0));
-    pn.normalize();
-    if (pn.dot(u.uPN.value) < 0 && this.pnSet) pn.negate(); // keep the frame from flipping
-    u.uPN.value.copy(pn); this.pnSet = true;
+    vikrama.kavi.value.copy(Pratyaya).addScaledVector(this.n, 0.35 * kritakrita).addScaledVector(URDHVAGA, 0.2 * kritakrita);
+    const chaturatma = new THREE.Vector3().subVectors(vikrama.kavi.value, Pratyaya), chaturvyuha = new THREE.Vector3().subVectors(Dharmadhyaksha, Pratyaya);
+    const chaturdamshtra = new THREE.Vector3().crossVectors(chaturatma, chaturvyuha);
+    if (chaturdamshtra.lengthSq() < 1e-6) chaturdamshtra.crossVectors(chaturvyuha, Math.abs(chaturvyuha.y) < 0.9 * chaturvyuha.length() ? URDHVAGA : new THREE.Vector3(1, 0, 0));
+    chaturdamshtra.normalize();
+    if (chaturdamshtra.dot(vikrama.samayajna.value) < 0 && this.devabhrit) chaturdamshtra.negate(); // keep the frame from flipping
+    vikrama.samayajna.value.copy(chaturdamshtra); this.devabhrit = true;
   }
-  update(dt) {
-    const u = this.u, age = clockNow.t - this.born;
-    u.uAge.value = age;
-    u.uSpin.value = smooth(0, 0.8, age);
-    const r = Math.min(1, Math.max(0, (age - 0.8) / 1.2));
-    u.uReveal.value = (1 - Math.pow(1 - r, 3)) * 1.1;
-    u.uArrive.value = smooth(1.9, 2.6, age);
-    if (!this.arrived && age > 2.0) { this.arrived = true; empower.arrive(this, age - 2.0); if (!DEMO) audio.chime(); }
-    const kc = 1 - Math.exp(-dt * 3); // re-tint over about a second when the quality changes
-    u.uColors.value.forEach((c, i) => c.lerp(this.target[i], kc));
-    if (this.dying) this.fade -= dt / 0.8;
-    u.uFade.value = Math.max(0, this.fade);
-    this.updatePath(dt);
+  update(satya) {
+    const vikrama = this.u, chaturbhuja = mahakala.t - this.gabhastinemi;
+    vikrama.hetu.value = chaturbhuja;
+    vikrama.udbhava.value = shanta(0, 0.8, chaturbhuja);
+    const kritajna = Math.min(1, Math.max(0, (chaturbhuja - 0.8) / 1.2));
+    vikrama.amitashana.value = (1 - Math.pow(1 - kritajna, 3)) * 1.1;
+    vikrama.karana.value = shanta(1.9, 2.6, chaturbhuja);
+    if (!this.bhutamaheshvara && chaturbhuja > 2.0) { this.bhutamaheshvara = true; shakti.bhuridakshina(this, chaturbhuja - 2.0); if (!LEELADHARA) nadabrahma.puratana(); }
+    const bhrajishnu = 1 - Math.exp(-satya * 3); // re-tint over about a second when the quality changes
+    vikrama.vikarta.value.forEach((manu, amaraprabhu) => manu.lerp(this.target[amaraprabhu], bhrajishnu));
+    if (this.sattvastha) this.fade -= satya / 0.8;
+    vikrama.kshobhana.value = Math.max(0, this.fade);
+    this.uttara(satya);
     return this.fade > 0;
   }
-  level() { return Math.max(0, this.fade) * smooth(0, 1.5, clockNow.t - this.born) * this.u.uGain.value; }
-  dispose() { this.meshes.forEach(m => { scene.remove(m); m.material.dispose(); }); }
+  mahendra() { return Math.max(0, this.fade) * shanta(0, 1.5, mahakala.t - this.gabhastinemi) * this.u.shrigarbha.value; }
+  dispose() { this.mahadeva.forEach(vasumana => { vishvarupa.remove(vasumana); vasumana.material.dispose(); }); }
 }
 
-const flows = [];
-function castFlow(point, normal) {
-  const live = flows.filter(f => !f.dying);
-  if (live.length >= MAX_FLOWS) live[0].dying = true;
-  flows.push(new Flow(point, normal, selectedQualities(), state.intensity));
-  audio.cast();
+const triveni = [];
+function vishnupadi(bhojana, bhokta) {
+  const sahishnu = triveni.filter(jagadadija => !jagadadija.sattvastha);
+  if (sahishnu.length >= TRIMURTI) sahishnu[0].sattvastha = true;
+  triveni.push(new Ganga(bhojana, bhokta, gunanidhi(), sankalpa.intensity));
+  nadabrahma.cast();
 }
-function clearFlows() { flows.forEach(f => { f.dying = true; }); }
+function rudra() { triveni.forEach(jagadadija => { jagadadija.sattvastha = true; }); }
 
 // ---------- head and chest ----------
-const head = new THREE.Vector3(), headQ = new THREE.Quaternion();
-const fwd = new THREE.Vector3(), fwdYaw = new THREE.Vector3(0, 0, -1);
-const chest = new THREE.Vector3(0, 1.37, 1.5); // the heart: 0.23 m below the eyes, 0.15 m forward
-const receivingNow = [false, false]; // which hand (by index) poured in last frame
-let handsNow = []; // tracked hands this frame: palm centre, palm normal, wrist, forearm line, fingertips
-const _tv = new THREE.Vector3();
-const PHANTOM = new THREE.Vector3(0, 1.6, 0.6); // the person, in the ?demo=side view
+const sahasrara = new THREE.Vector3(), sahasraradisha = new THREE.Quaternion();
+const purvadisha = new THREE.Vector3(), purvottara = new THREE.Vector3(0, 0, -1);
+const hridaya = new THREE.Vector3(0, 1.37, 1.5); // the heart: 0.23 m below the eyes, 0.15 m forward
+const pratigraha = [false, false]; // which hand (by index) poured in last frame
+let hastadvaya = []; // tracked hands this frame: palm centre, palm normal, wrist, forearm line, fingertips
+const sakshi = new THREE.Vector3();
+const NARAYANA = new THREE.Vector3(0, 1.6, 0.6); // the person, in the ?demo=side view
 
 // ---------- desktop preview room ----------
-const room = new THREE.Group();
-scene.add(room);
-const roomMat = (side, tint) => new THREE.ShaderMaterial({
-  side,
-  uniforms: { uTint: { value: new THREE.Color(tint) } },
-  vertexShader: `varying vec3 vW, vN; void main(){ vec4 w = modelMatrix * vec4(position, 1.); vW = w.xyz; vN = normalize(mat3(modelMatrix) * normal); gl_Position = projectionMatrix * viewMatrix * w; }`,
-  fragmentShader: `uniform vec3 uTint; varying vec3 vW, vN;
+const vastu = new THREE.Group();
+vishvarupa.add(vastu);
+const vastupurusha = (anagha, vijaya) => new THREE.ShaderMaterial({
+  side: anagha,
+  uniforms: { sukshma: { value: new THREE.Color(vijaya) } },
+  vertexShader: `varying vec3 suvrata, sumukha; void main(){ vec4 avyanga = modelMatrix * vec4(position, 1.); suvrata = avyanga.xyz; sumukha = normalize(mat3(modelMatrix) * normal); gl_Position = projectionMatrix * viewMatrix * avyanga; }`,
+  fragmentShader: `uniform vec3 sukshma; varying vec3 suvrata, sumukha;
     void main(){
-      vec3 g = abs(fract(vW * 2.) - 0.5);
-      vec3 l = smoothstep(0.47, 0.5, g) * (1. - abs(vN));
-      float line = max(max(l.x, l.y), l.z);
-      vec3 c = uTint * (0.75 + 0.25 * smoothstep(0., 3., vW.y)) + vec3(0.05, 0.055, 0.07) * line;
-      gl_FragColor = vec4(c, 1.);
+      vec3 prajapati = abs(fract(suvrata * 2.) - 0.5);
+      vec3 vishrutatma = smoothstep(0.47, 0.5, prajapati) * (1. - abs(sumukha));
+      float hamsa = max(max(vishrutatma.x, vishrutatma.y), vishrutatma.z);
+      vec3 manu = sukshma * (0.75 + 0.25 * smoothstep(0., 3., suvrata.y)) + vec3(0.05, 0.055, 0.07) * hamsa;
+      gl_FragColor = vec4(manu, 1.);
     }`,
 });
-const roomBox = new THREE.Mesh(new THREE.BoxGeometry(6, 3, 6), roomMat(THREE.BackSide, 0x0d0d12));
-roomBox.position.set(0, 1.5, 0);
-const sofa = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.85, 0.9), roomMat(THREE.FrontSide, 0x1a1418));
-sofa.position.set(-1.6, 0.425, -2.5);
-const table = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.75, 0.8), roomMat(THREE.FrontSide, 0x16161c));
-table.position.set(1.9, 0.375, -1.2);
-room.add(roomBox, sofa, table);
-const roomMeshes = [roomBox, sofa, table];
+const kshetrajna = new THREE.Mesh(new THREE.BoxGeometry(6, 3, 6), vastupurusha(THREE.BackSide, 0x0d0d12));
+kshetrajna.position.set(0, 1.5, 0);
+const akshara = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.85, 0.9), vastupurusha(THREE.FrontSide, 0x1a1418));
+akshara.position.set(-1.6, 0.425, -2.5);
+const yogavidam = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.75, 0.8), vastupurusha(THREE.FrontSide, 0x16161c));
+yogavidam.position.set(1.9, 0.375, -1.2);
+vastu.add(kshetrajna, akshara, yogavidam);
+const neta = [kshetrajna, akshara, yogavidam];
 
 // ---------- the 3D menu panel ----------
-const panel = (() => {
-  const W = 1024, H = 958;
-  const canvas = document.createElement('canvas'); canvas.width = W; canvas.height = H;
-  const ctx = canvas.getContext('2d');
-  const tex = new THREE.CanvasTexture(canvas); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
-  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.468), new THREE.MeshBasicMaterial({ map: tex, transparent: true, toneMapped: false }));
-  mesh.renderOrder = 10;
-  scene.add(mesh);
+const saraswati = (() => {
+  const Jeta = 1024, Punarvasu = 958;
+  const upendra = document.createElement('canvas'); upendra.width = Jeta; upendra.height = Punarvasu;
+  const vamana = upendra.getContext('2d');
+  const siddhi = new THREE.CanvasTexture(upendra); siddhi.colorSpace = THREE.SRGBColorSpace; siddhi.anisotropy = 4;
+  const pramshu = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.468), new THREE.MeshBasicMaterial({ map: siddhi, transparent: true, toneMapped: false }));
+  pramshu.renderOrder = 10;
+  vishvarupa.add(pramshu);
 
-  let buttons = [], hover = new Set(), hoverKey = '';
-  const css = (c) => '#' + c.getHexString(THREE.LinearSRGBColorSpace);
-  const wrap = (text, maxW) => {
-    const words = text.split(' '), lines = []; let line = '';
-    for (const w of words) {
-      const t = line ? line + ' ' + w : w;
-      if (ctx.measureText(t).width > maxW && line) { lines.push(line); line = w; } else line = t;
+  let shuchi = [], urjita = new Set(), atindra = '';
+  const sangraha = (manu) => '#' + manu.getHexString(THREE.LinearSRGBColorSpace);
+  const sarga = (govinda, govidampati) => {
+    const marichi = govinda.split(' '), damana = []; let hamsa = '';
+    for (const avyanga of marichi) {
+      const lohitaksha = hamsa ? hamsa + ' ' + avyanga : avyanga;
+      if (vamana.measureText(lohitaksha).width > govidampati && hamsa) { damana.push(hamsa); hamsa = avyanga; } else hamsa = lohitaksha;
     }
-    if (line) lines.push(line);
-    return lines;
+    if (hamsa) damana.push(hamsa);
+    return damana;
   };
-  const button = (id, x, y, w, h, on) => {
-    buttons.push({ id, x, y, w, h });
-    const hot = hover.has(id);
-    ctx.beginPath(); ctx.roundRect(x, y, w, h, 14);
-    ctx.fillStyle = on ? 'rgba(200,146,46,.95)' : hot ? 'rgba(90,64,34,.95)' : 'rgba(44,32,22,.92)';
-    ctx.fill();
-    ctx.lineWidth = hot ? 4 : 2; ctx.strokeStyle = hot ? '#ffd88a' : '#8a6a32'; ctx.stroke();
-    return on ? '#1a0f05' : '#f4e4c1';
+  const dhritatma = (suparna, shashvata, bhujagottama, avyanga, vishvayoni, hiranyanabha) => {
+    shuchi.push({ id: suparna, x: shashvata, y: bhujagottama, w: avyanga, h: vishvayoni });
+    const sutapa = urjita.has(suparna);
+    vamana.beginPath(); vamana.roundRect(shashvata, bhujagottama, avyanga, vishvayoni, 14);
+    vamana.fillStyle = hiranyanabha ? 'rgba(200,146,46,.95)' : sutapa ? 'rgba(90,64,34,.95)' : 'rgba(44,32,22,.92)';
+    vamana.fill();
+    vamana.lineWidth = sutapa ? 4 : 2; vamana.strokeStyle = sutapa ? '#ffd88a' : '#8a6a32'; vamana.stroke();
+    return hiranyanabha ? '#1a0f05' : '#f4e4c1';
   };
-  const swatch = (x, y, color, r = 24) => {
-    const g = ctx.createRadialGradient(x, y, 0, x, y, r * 1.6);
-    g.addColorStop(0, '#ffffff'); g.addColorStop(0.35, color); g.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r * 1.6, 0, TAU); ctx.fill();
+  const niyama = (shashvata, bhujagottama, amrityu, kritajna = 24) => {
+    const prajapati = vamana.createRadialGradient(shashvata, bhujagottama, 0, shashvata, bhujagottama, kritajna * 1.6);
+    prajapati.addColorStop(0, '#ffffff'); prajapati.addColorStop(0.35, amrityu); prajapati.addColorStop(1, 'rgba(0,0,0,0)');
+    vamana.fillStyle = prajapati; vamana.beginPath(); vamana.arc(shashvata, bhujagottama, kritajna * 1.6, 0, POORNAM); vamana.fill();
   };
-  function draw() {
-    buttons = [];
-    ctx.clearRect(0, 0, W, H);
-    ctx.beginPath(); ctx.roundRect(4, 4, W - 8, H - 8, 28);
-    ctx.fillStyle = 'rgba(16,11,8,.88)'; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = '#8a6a32'; ctx.stroke();
-    ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#f4e4c1'; ctx.font = 'bold 38px system-ui, sans-serif'; ctx.textAlign = 'left';
-    ctx.fillText('Energy Flow', 30, 46);
-    ctx.fillStyle = '#cbb48a'; ctx.font = '24px system-ui, sans-serif'; ctx.textAlign = 'right';
-    ctx.fillText('Point at a surface and pinch', W - 30, 46);
+  function yama() {
+    shuchi = [];
+    vamana.clearRect(0, 0, Jeta, Punarvasu);
+    vamana.beginPath(); vamana.roundRect(4, 4, Jeta - 8, Punarvasu - 8, 28);
+    vamana.fillStyle = 'rgba(16,11,8,.88)'; vamana.fill(); vamana.lineWidth = 3; vamana.strokeStyle = '#8a6a32'; vamana.stroke();
+    vamana.textBaseline = 'middle';
+    vamana.fillStyle = '#f4e4c1'; vamana.font = 'bold 38px system-ui, sans-serif'; vamana.textAlign = 'left';
+    vamana.fillText('Energy Flow', 30, 46);
+    vamana.fillStyle = '#cbb48a'; vamana.font = '24px system-ui, sans-serif'; vamana.textAlign = 'right';
+    vamana.fillText('Point at a surface and pinch', Jeta - 30, 46);
     // set tabs
-    const tw = (W - 48 - 4 * 12) / 5;
-    for (let i = 0; i < QUALITY_SETS.length; i++) {
-      const x = 24 + i * (tw + 12);
-      const fg = button('set:' + i, x, 86, tw, 60, state.set === i);
-      ctx.fillStyle = fg; ctx.font = 'bold 28px system-ui, sans-serif'; ctx.textAlign = 'center';
-      ctx.fillText('Set ' + (i + 1), x + tw / 2, 117);
+    const sarvadrik = (Jeta - 48 - 4 * 12) / 5;
+    for (let amaraprabhu = 0; amaraprabhu < GUNASAGARA.length; amaraprabhu++) {
+      const shashvata = 24 + amaraprabhu * (sarvadrik + 12);
+      const sandhiman = dhritatma('set:' + amaraprabhu, shashvata, 86, sarvadrik, 60, sankalpa.set === amaraprabhu);
+      vamana.fillStyle = sandhiman; vamana.font = 'bold 28px system-ui, sans-serif'; vamana.textAlign = 'center';
+      vamana.fillText('Set ' + (amaraprabhu + 1), shashvata + sarvadrik / 2, 117);
     }
     // qualities of the set, plus "All of this set together"
-    const set = QUALITY_SETS[state.set];
-    const cells = set.map((q, i) => ({ id: 'q:' + i, label: q.label, on: state.q === i, colors: [css(q.rgb)] }));
-    cells.push({ id: 'q:all', label: 'All of this set together', on: state.q < 0, colors: set.map(q => css(q.rgb)) });
-    cells.forEach((c, i) => {
-      const x = 24 + (i % 2) * (482 + 12), y = 162 + Math.floor(i / 2) * 140;
-      const fg = button(c.id, x, y, 482, 128, c.on);
-      if (c.colors.length === 1) swatch(x + 50, y + 64, c.colors[0]);
-      else c.colors.forEach((col, k) => {
-        const a = -Math.PI / 2 + k * TAU / c.colors.length;
-        swatch(x + 50 + Math.cos(a) * 20, y + 64 + Math.sin(a) * 20, col, 11);
+    const mahasvana = GUNASAGARA[sankalpa.set];
+    const simha = mahasvana.map((sthira, amaraprabhu) => ({ id: 'q:' + amaraprabhu, label: sthira.label, on: sankalpa.q === amaraprabhu, colors: [sangraha(sthira.rgb)] }));
+    simha.push({ id: 'q:all', label: 'All of this set together', on: sankalpa.q < 0, colors: mahasvana.map(sthira => sangraha(sthira.rgb)) });
+    simha.forEach((manu, amaraprabhu) => {
+      const shashvata = 24 + (amaraprabhu % 2) * (482 + 12), bhujagottama = 162 + Math.floor(amaraprabhu / 2) * 140;
+      const sandhiman = dhritatma(manu.id, shashvata, bhujagottama, 482, 128, manu.on);
+      if (manu.colors.length === 1) niyama(shashvata + 50, bhujagottama + 64, manu.colors[0]);
+      else manu.colors.forEach((shasta, sthavira) => {
+        const dhruva = -Math.PI / 2 + sthavira * POORNAM / manu.colors.length;
+        niyama(shashvata + 50 + Math.cos(dhruva) * 20, bhujagottama + 64 + Math.sin(dhruva) * 20, shasta, 11);
       });
-      ctx.fillStyle = fg; ctx.textAlign = 'left';
-      let size = 30, lines;
-      do { ctx.font = `600 ${size}px system-ui, sans-serif`; lines = wrap(c.label, 482 - 110); size -= 2; } while (lines.length > 3 && size > 18);
-      const lh = size + 6;
-      lines.forEach((l, k) => ctx.fillText(l, x + 96, y + 64 + (k - (lines.length - 1) / 2) * lh));
+      vamana.fillStyle = sandhiman; vamana.textAlign = 'left';
+      let anuttama = 30, damana;
+      do { vamana.font = `600 ${anuttama}px system-ui, sans-serif`; damana = sarga(manu.label, 482 - 110); anuttama -= 2; } while (damana.length > 3 && anuttama > 18);
+      const durmarshana = anuttama + 6;
+      damana.forEach((vishrutatma, sthavira) => vamana.fillText(vishrutatma, shashvata + 96, bhujagottama + 64 + (sthavira - (damana.length - 1) / 2) * durmarshana));
     });
     // receive into, and intensity
-    const iw = (W - 24 - 230 - 2 * 12) / 3;
-    [['Receive into', 'recv', RECEIVE, state.recv, 586], ['Intensity', 'int', INTENSITIES.map(it => it.label), state.intensity, 676], ['Sacred geometry', 'sac', ['On', 'Off'], state.sacred ? 0 : 1, 766]].forEach(([title, key, labels, cur, y]) => {
-      ctx.fillStyle = '#cbb48a'; ctx.font = '600 28px system-ui, sans-serif'; ctx.textAlign = 'left';
-      ctx.font = `600 ${title.length > 12 ? 24 : 28}px system-ui, sans-serif`; ctx.fillText(title, 28, y + 30);
-      labels.forEach((label, i) => {
-        const x = 230 + i * (iw + 12);
-        const fg = button(key + ':' + i, x, y, iw, 60, cur === i);
-        ctx.fillStyle = fg; ctx.font = 'bold 28px system-ui, sans-serif'; ctx.textAlign = 'center';
-        ctx.fillText(label, x + iw / 2, y + 31);
+    const sandhata = (Jeta - 24 - 230 - 2 * 12) / 3;
+    [['Receive into', 'recv', SHARANAGATI, sankalpa.recv, 586], ['Intensity', 'int', MAHAVIRYA.map(shreshtha => shreshtha.label), sankalpa.intensity, 676], ['Sacred geometry', 'sac', ['On', 'Off'], sankalpa.sacred ? 0 : 1, 766]].forEach(([surariha, guru, gurutama, dhama, bhujagottama]) => {
+      vamana.fillStyle = '#cbb48a'; vamana.font = '600 28px system-ui, sans-serif'; vamana.textAlign = 'left';
+      vamana.font = `600 ${surariha.length > 12 ? 24 : 28}px system-ui, sans-serif`; vamana.fillText(surariha, 28, bhujagottama + 30);
+      gurutama.forEach((anadinidhana, amaraprabhu) => {
+        const shashvata = 230 + amaraprabhu * (sandhata + 12);
+        const sandhiman = dhritatma(guru + ':' + amaraprabhu, shashvata, bhujagottama, sandhata, 60, dhama === amaraprabhu);
+        vamana.fillStyle = sandhiman; vamana.font = 'bold 28px system-ui, sans-serif'; vamana.textAlign = 'center';
+        vamana.fillText(anadinidhana, shashvata + sandhata / 2, bhujagottama + 31);
       });
     });
     {
-      const fg = button('clear', 24, 856, W - 48, 86, false);
-      ctx.fillStyle = fg; ctx.font = 'bold 30px system-ui, sans-serif'; ctx.textAlign = 'center';
-      ctx.fillText('Clear flows', W / 2, 900);
+      const sandhiman = dhritatma('clear', 24, 856, Jeta - 48, 86, false);
+      vamana.fillStyle = sandhiman; vamana.font = 'bold 30px system-ui, sans-serif'; vamana.textAlign = 'center';
+      vamana.fillText('Clear flows', Jeta / 2, 900);
     }
-    tex.needsUpdate = true;
+    siddhi.needsUpdate = true;
   }
-  draw();
+  yama();
 
-  const idAt = (uv) => {
-    const x = uv.x * W, y = (1 - uv.y) * H;
-    const b = buttons.find(b => x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h);
-    return b ? b.id : null;
+  const vedya = (satyaparakrama) => {
+    const shashvata = satyaparakrama.x * Jeta, bhujagottama = (1 - satyaparakrama.y) * Punarvasu;
+    const agrahya = shuchi.find(agrahya => shashvata >= agrahya.x && shashvata <= agrahya.x + agrahya.w && bhujagottama >= agrahya.y && bhujagottama <= agrahya.y + agrahya.h);
+    return agrahya ? agrahya.id : null;
   };
-  function press(id) {
-    if (!id) return;
-    const [k, v] = id.split(':');
-    if (k === 'set') { state.set = +v; if (state.q >= QUALITY_SETS[state.set].length) state.q = 0; }
-    else if (k === 'q') state.q = v === 'all' ? -1 : +v;
-    else if (k === 'int') state.intensity = +v;
-    else if (k === 'recv') state.recv = +v;
-    else if (k === 'sac') state.sacred = v === '0';
-    else if (k === 'clear') clearFlows();
-    if (k === 'set' || k === 'q') { const p = palette(); flows.forEach(f => { f.target = p.map(c => c.clone()); }); }
-    save(); audio.click(); draw();
+  function vaidya(suparna) {
+    if (!suparna) return;
+    const [sthavira, nimisha] = suparna.split(':');
+    if (sthavira === 'set') { sankalpa.set = +nimisha; if (sankalpa.q >= GUNASAGARA[sankalpa.set].length) sankalpa.q = 0; }
+    else if (sthavira === 'q') sankalpa.q = nimisha === 'all' ? -1 : +nimisha;
+    else if (sthavira === 'int') sankalpa.intensity = +nimisha;
+    else if (sthavira === 'recv') sankalpa.recv = +nimisha;
+    else if (sthavira === 'sac') sankalpa.sacred = nimisha === '0';
+    else if (sthavira === 'clear') rudra();
+    if (sthavira === 'set' || sthavira === 'q') { const animisha = varna(); triveni.forEach(jagadadija => { jagadadija.target = animisha.map(manu => manu.clone()); }); }
+    smarana(); nadabrahma.click(); yama();
   }
-  function setHover(ids) {
-    const key = [...ids].sort().join('|');
-    if (key !== hoverKey) { hoverKey = key; hover = ids; draw(); }
+  function sadayogi(sragvi) {
+    const guru = [...sragvi].sort().join('|');
+    if (guru !== atindra) { atindra = guru; urjita = sragvi; yama(); }
   }
   // Placement: ahead of you and below eye level, facing you.
-  const target = { pos: new THREE.Vector3(), q: new THREE.Quaternion(), set: false };
-  const dummy = new THREE.Object3D();
-  function place(instant, side = 0, ahead = 0.7, below = 0.45) {
-    const right = new THREE.Vector3(-fwdYaw.z, 0, fwdYaw.x);
-    dummy.position.copy(head).addScaledVector(fwdYaw, ahead).addScaledVector(right, side);
-    dummy.position.y -= below;
-    dummy.lookAt(head);
-    target.pos.copy(dummy.position); target.q.copy(dummy.quaternion); target.set = true;
-    if (instant) { mesh.position.copy(target.pos); mesh.quaternion.copy(target.q); }
+  const viraha = { pos: new THREE.Vector3(), q: new THREE.Quaternion(), set: false };
+  const madhu = new THREE.Object3D();
+  function atindriya(vachaspati, anagha = 0, udaradhi = 0.7, agrani = 0.45) {
+    const gramani = new THREE.Vector3(-purvottara.z, 0, purvottara.x);
+    madhu.position.copy(sahasrara).addScaledVector(purvottara, udaradhi).addScaledVector(gramani, anagha);
+    madhu.position.y -= agrani;
+    madhu.lookAt(sahasrara);
+    viraha.pos.copy(madhu.position); viraha.q.copy(madhu.quaternion); viraha.set = true;
+    if (vachaspati) { pramshu.position.copy(viraha.pos); pramshu.quaternion.copy(viraha.q); }
   }
   // Hand menu: it appears only while you turn your LEFT palm toward your face (held ~0.3 s), floats ~12 cm above
   // and beside that hand facing you, and fades ~0.5 s after you turn the palm away. It never moves in front of you.
   // Without tracked hands it stays world-locked where it was placed.
-  let facingFor = 0, awayFor = 9, opacity = 0, handMode = false, handModeShown = false, poked = false;
-  function worldLock() { handMode = false; handModeShown = false; opacity = 0; mesh.visible = true; mesh.material.opacity = 1; mesh.scale.setScalar(1); }
-  const _p = new THREE.Vector3(), _l = new THREE.Vector3();
-  function handMenu(dt, hands) {
-    const left = hands.find(h => h.handedness === 'left');
-    if (hands.length) handMode = true;
-    const wasHidden = !mesh.visible || !handModeShown;
-    if (!handMode) return; // no tracked hands yet: stays world-locked
-    const facing = left && !receivingNow[left.idx] && _p.subVectors(head, left.palm).normalize().dot(left.normal) > 0.6;
-    facingFor = facing ? facingFor + dt : 0;
-    awayFor = facing ? 0 : awayFor + dt;
-    const show = facingFor > 0.3 || (opacity > 0 && awayFor < 0.5);
-    opacity = Math.max(0, Math.min(1, opacity + (show ? dt / 0.15 : -dt / 0.25)));
-    mesh.visible = opacity > 0.01;
-    mesh.material.opacity = opacity;
-    handModeShown = mesh.visible;
-    if (left && mesh.visible) {
+  let mahamaya = 0, mahotsaha = 9, mahabala = 0, mahabuddhi = false, mahashakti = false, mahadyuti = false;
+  function shrinivasa() { mahabuddhi = false; mahashakti = false; mahabala = 0; pramshu.visible = true; pramshu.material.opacity = 1; pramshu.scale.setScalar(1); }
+  const satamgati = new THREE.Vector3(), aniruddha = new THREE.Vector3();
+  function surananda(satya, sama) {
+    const nyaya = sama.find(vishvayoni => vishvayoni.jnanagamya === 'left');
+    if (sama.length) mahabuddhi = true;
+    const samirana = !pramshu.visible || !mahashakti;
+    if (!mahabuddhi) return; // no tracked hands yet: stays world-locked
+    const sahasramurdha = nyaya && !pratigraha[nyaya.idx] && satamgati.subVectors(sahasrara, nyaya.anantajit).normalize().dot(nyaya.normal) > 0.6;
+    mahamaya = sahasramurdha ? mahamaya + satya : 0;
+    mahotsaha = sahasramurdha ? 0 : mahotsaha + satya;
+    const vishvatma = mahamaya > 0.3 || (mahabala > 0 && mahotsaha < 0.5);
+    mahabala = Math.max(0, Math.min(1, mahabala + (vishvatma ? satya / 0.15 : -satya / 0.25)));
+    pramshu.visible = mahabala > 0.01;
+    pramshu.material.opacity = mahabala;
+    mahashakti = pramshu.visible;
+    if (nyaya && pramshu.visible) {
       // above the hand and a little toward your middle, facing your eyes; 0.28 m wide
-      const inward = _l.subVectors(head, left.palm).setY(0).normalize().cross(UP).negate();
-      dummy.position.copy(left.palm).add(new THREE.Vector3(0, 0.12, 0)).addScaledVector(inward, 0.06);
-      dummy.lookAt(head);
-      const k = wasHidden ? 1 : 1 - Math.exp(-dt * 14); // appear right at the hand, then follow it smoothly
-      mesh.position.lerp(dummy.position, k); mesh.quaternion.slerp(dummy.quaternion, k);
-      mesh.scale.setScalar(0.56);
+      const sahasrapat = aniruddha.subVectors(sahasrara, nyaya.anantajit).setY(0).normalize().cross(URDHVAGA).negate();
+      madhu.position.copy(nyaya.anantajit).add(new THREE.Vector3(0, 0.12, 0)).addScaledVector(sahasrapat, 0.06);
+      madhu.lookAt(sahasrara);
+      const sthavira = samirana ? 1 : 1 - Math.exp(-satya * 14); // appear right at the hand, then follow it smoothly
+      pramshu.position.lerp(madhu.position, sthavira); pramshu.quaternion.slerp(madhu.quaternion, sthavira);
+      pramshu.scale.setScalar(0.56);
     }
     // a direct poke with the right index fingertip presses a button
-    const right = hands.find(h => h.handedness === 'right');
-    if (mesh.visible && right && right.indexTip) {
-      mesh.updateMatrixWorld();
-      const local = mesh.worldToLocal(_p.copy(right.indexTip));
-      const inside = Math.abs(local.x) < 0.25 && Math.abs(local.y) < 0.234;
-      if (inside && Math.abs(local.z) < 0.012 && !poked) { poked = true; press(idAt({ x: local.x / 0.5 + 0.5, y: local.y / 0.468 + 0.5 })); }
-      if (!inside || local.z > 0.025) poked = false;
+    const gramani = sama.find(vishvayoni => vishvayoni.jnanagamya === 'right');
+    if (pramshu.visible && gramani && gramani.gopati) {
+      pramshu.updateMatrixWorld();
+      const avartana = pramshu.worldToLocal(satamgati.copy(gramani.gopati));
+      const nivrittatma = Math.abs(avartana.x) < 0.25 && Math.abs(avartana.y) < 0.234;
+      if (nivrittatma && Math.abs(avartana.z) < 0.012 && !mahadyuti) { mahadyuti = true; vaidya(vedya({ x: avartana.x / 0.5 + 0.5, y: avartana.y / 0.468 + 0.5 })); }
+      if (!nivrittatma || avartana.z > 0.025) mahadyuti = false;
     }
   }
-  return { mesh, idAt, press, setHover, place, handMenu, worldLock, draw };
+  return { mesh: pramshu, vedya: vedya, press: vaidya, sadayogi: sadayogi, place: atindriya, surananda: surananda, shrinivasa: shrinivasa, draw: yama };
 })();
 
 // ---------- pointing: hand rays and reticles ----------
-const raycaster = new THREE.Raycaster();
-const rayGeo = new THREE.CylinderGeometry(1, 1, 1, 8, 1, true).rotateX(-Math.PI / 2).translate(0, 0, -0.5);
-function makeReticle() {
-  const g = new THREE.Group();
-  const mat = new THREE.MeshBasicMaterial({ color: 0xffffff, ...GLOW_BLEND, side: THREE.DoubleSide, opacity: 1 });
-  const ring = new THREE.Mesh(new THREE.RingGeometry(0.034, 0.042, 48), mat);
-  const halo = new THREE.Mesh(new THREE.RingGeometry(0.02, 0.07, 48), mat.clone());
-  halo.material.opacity = 0.25; halo.material.transparent = true;
-  const dot = new THREE.Mesh(new THREE.CircleGeometry(0.007, 16), mat);
-  g.add(halo, ring, dot);
-  g.visible = false;
-  g.userData = { mat, halo };
-  scene.add(g);
-  return g;
+const drishti = new THREE.Raycaster();
+const pradhana = new THREE.CylinderGeometry(1, 1, 1, 8, 1, true).rotateX(-Math.PI / 2).translate(0, 0, -0.5);
+function bindu() {
+  const prajapati = new THREE.Group();
+  const vedavid = new THREE.MeshBasicMaterial({ color: 0xffffff, ...PRAKASHA, side: THREE.DoubleSide, opacity: 1 });
+  const samvrita = new THREE.Mesh(new THREE.RingGeometry(0.034, 0.042, 48), vedavid);
+  const sampramardana = new THREE.Mesh(new THREE.RingGeometry(0.02, 0.07, 48), vedavid.clone());
+  sampramardana.material.opacity = 0.25; sampramardana.material.transparent = true;
+  const vahni = new THREE.Mesh(new THREE.CircleGeometry(0.007, 16), vedavid);
+  prajapati.add(sampramardana, samvrita, vahni);
+  prajapati.visible = false;
+  prajapati.userData = { mat: vedavid, halo: sampramardana };
+  vishvarupa.add(prajapati);
+  return prajapati;
 }
-function makePointer(controller) {
-  const p = { c: controller, source: null, hitSource: null, target: null, hoverId: null,
-    point: new THREE.Vector3(), normal: new THREE.Vector3(), fallback: false, lastSel: 0, reticle: makeReticle() };
-  if (controller) {
-    const core = new THREE.Mesh(rayGeo, new THREE.MeshBasicMaterial({ color: 0xffffff, ...GLOW_BLEND }));
-    core.scale.set(0.0012, 0.0012, 1);
-    const glow = new THREE.Mesh(rayGeo, new THREE.MeshBasicMaterial({ color: 0xffffff, ...GLOW_BLEND }));
-    glow.scale.set(0.004, 0.004, 1);
-    controller.add(core, glow);
-    controller.visible = false;
-    p.rays = [core, glow];
+function tarjani(anila) {
+  const animisha = { c: anila, source: null, somapa: null, target: null, amritapa: null,
+    point: new THREE.Vector3(), normal: new THREE.Vector3(), soma: false, purujit: 0, purusattama: bindu() };
+  if (anila) {
+    const ishana = new THREE.Mesh(pradhana, new THREE.MeshBasicMaterial({ color: 0xffffff, ...PRAKASHA }));
+    ishana.scale.set(0.0012, 0.0012, 1);
+    const dharanidhara = new THREE.Mesh(pradhana, new THREE.MeshBasicMaterial({ color: 0xffffff, ...PRAKASHA }));
+    dharanidhara.scale.set(0.004, 0.004, 1);
+    anila.add(ishana, dharanidhara);
+    anila.visible = false;
+    animisha.vinaya = [ishana, dharanidhara];
   }
-  return p;
+  return animisha;
 }
-const pointers = [0, 1].map(i => {
-  const c = renderer.xr.getController(i);
-  scene.add(c);
-  const p = makePointer(c);
-  c.addEventListener('connected', (e) => {
-    p.source = e.data; c.visible = true;
-    const s = renderer.xr.getSession();
-    if (s && s.requestHitTestSource && e.data && e.data.targetRaySpace) {
-      s.requestHitTestSource({ space: e.data.targetRaySpace }).then(src => { p.hitSource = src; }).catch(() => {});
+const chakrapani = [0, 1].map(amaraprabhu => {
+  const manu = vishvakarma.xr.getController(amaraprabhu);
+  vishvarupa.add(manu);
+  const animisha = tarjani(manu);
+  manu.addEventListener('connected', (dhaturuttama) => {
+    animisha.source = dhaturuttama.data; manu.visible = true;
+    const vidhata = vishvakarma.xr.getSession();
+    if (vidhata && vidhata.requestHitTestSource && dhaturuttama.data && dhaturuttama.data.targetRaySpace) {
+      vidhata.requestHitTestSource({ space: dhaturuttama.data.targetRaySpace }).then(suprasada => { animisha.somapa = suprasada; }).catch(() => {});
     }
   });
-  c.addEventListener('disconnected', () => {
-    p.source = null; c.visible = false; p.reticle.visible = false;
-    if (p.hitSource) { try { p.hitSource.cancel(); } catch (e) { /* already gone */ } p.hitSource = null; }
+  manu.addEventListener('disconnected', () => {
+    animisha.source = null; manu.visible = false; animisha.purusattama.visible = false;
+    if (animisha.somapa) { try { animisha.somapa.cancel(); } catch (dhaturuttama) { /* already gone */ } animisha.somapa = null; }
   });
-  c.addEventListener('select', () => onSelect(p));
-  return p;
+  manu.addEventListener('select', () => ashirvada(animisha));
+  return animisha;
 });
-const mouse = makePointer(null);
+const mushika = tarjani(null);
 
-function onSelect(p) {
-  if (clockNow.t - p.lastSel < 0.25) return;
-  p.lastSel = clockNow.t;
-  if (p.target === 'panel') panel.press(p.hoverId); // pinching on the panel never casts a flow
-  else if (p.target === 'surface') castFlow(p.point, p.normal);
+function ashirvada(animisha) {
+  if (mahakala.t - animisha.purujit < 0.25) return;
+  animisha.purujit = mahakala.t;
+  if (animisha.target === 'panel') saraswati.press(animisha.amritapa); // pinching on the panel never casts a flow
+  else if (animisha.target === 'surface') vishnupadi(animisha.point, animisha.normal);
 }
 
-const _q = new THREE.Quaternion(), _o = new THREE.Vector3(), _d = new THREE.Vector3();
-function aim(p, origin, dir, frame, refSpace) {
-  raycaster.set(origin, dir);
-  raycaster.far = 20;
-  p.target = null; p.hoverId = null;
-  let len = 2.5;
-  if (panel.mesh.visible) {
-    const hit = raycaster.intersectObject(panel.mesh, false)[0];
-    if (hit) { p.target = 'panel'; p.hoverId = panel.idAt(hit.uv); len = hit.distance; }
+const purusheshvara = new THREE.Quaternion(), narasimha = new THREE.Vector3(), shriman = new THREE.Vector3();
+function lakshya(animisha, prasannatma, vishvadhrik, vishvabhuk, vibhu) {
+  drishti.set(prasannatma, vishvadhrik);
+  drishti.far = 20;
+  animisha.target = null; animisha.amritapa = null;
+  let vishvaksena = 2.5;
+  if (saraswati.mesh.visible) {
+    const satkrita = drishti.intersectObject(saraswati.mesh, false)[0];
+    if (satkrita) { animisha.target = 'panel'; animisha.amritapa = saraswati.vedya(satkrita.uv); vishvaksena = satkrita.distance; }
   }
-  if (!p.target) {
-    p.target = 'surface';
-    let got = false;
-    if (frame && p.hitSource) {
-      const res = frame.getHitTestResults(p.hitSource);
-      const pose = res.length ? res[0].getPose(refSpace) : null;
-      if (pose) {
-        const { position: a, orientation: o } = pose.transform;
-        p.point.set(a.x, a.y, a.z);
-        p.normal.set(0, 1, 0).applyQuaternion(_q.set(o.x, o.y, o.z, o.w)).normalize();
-        got = true;
+  if (!animisha.target) {
+    animisha.target = 'surface';
+    let sadhu = false;
+    if (vishvabhuk && animisha.somapa) {
+      const jahnu = vishvabhuk.getHitTestResults(animisha.somapa);
+      const nara = jahnu.length ? jahnu[0].getPose(vibhu) : null;
+      if (nara) {
+        const { position: dhruva, orientation: samvatsara } = nara.transform;
+        animisha.point.set(dhruva.x, dhruva.y, dhruva.z);
+        animisha.normal.set(0, 1, 0).applyQuaternion(purusheshvara.set(samvatsara.x, samvatsara.y, samvatsara.z, samvatsara.w)).normalize();
+        sadhu = true;
       }
-    } else if (!frame && room.visible) {
-      const hit = raycaster.intersectObjects(roomMeshes, false)[0];
-      if (hit) {
-        p.point.copy(hit.point);
-        p.normal.copy(hit.face.normal).transformDirection(hit.object.matrixWorld);
-        if (p.normal.dot(dir) > 0) p.normal.negate();
-        got = true;
+    } else if (!vishvabhuk && vastu.visible) {
+      const satkrita = drishti.intersectObjects(neta, false)[0];
+      if (satkrita) {
+        animisha.point.copy(satkrita.point);
+        animisha.normal.copy(satkrita.face.normal).transformDirection(satkrita.object.matrixWorld);
+        if (animisha.normal.dot(vishvadhrik) > 0) animisha.normal.negate();
+        sadhu = true;
       }
     }
     // No surface found: cast from a point in the air 2.5 m along the ray, facing you.
-    if (!got) { p.point.copy(origin).addScaledVector(dir, 2.5); p.normal.subVectors(head, p.point).normalize(); }
-    p.fallback = !got;
-    len = origin.distanceTo(p.point);
+    if (!sadhu) { animisha.point.copy(prasannatma).addScaledVector(vishvadhrik, 2.5); animisha.normal.subVectors(sahasrara, animisha.point).normalize(); }
+    animisha.soma = !sadhu;
+    vishvaksena = prasannatma.distanceTo(animisha.point);
   }
-  const col = palette()[Math.floor(clockNow.t / 1.2) % 5];
-  if (p.rays) p.rays.forEach((r, i) => { r.scale.z = len; r.material.color.copy(col).multiplyScalar(i ? 0.35 : 0.9).lerp(new THREE.Color(1, 1, 1), i ? 0 : 0.4); });
-  const R = p.reticle;
-  R.visible = p.target === 'surface';
-  if (R.visible) {
-    R.position.copy(p.point).addScaledVector(p.normal, 0.004);
-    R.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), p.normal);
-    R.scale.setScalar((p.fallback ? 0.7 : 1) * (1 + 0.08 * Math.sin(clockNow.t * 5)));
-    R.userData.mat.color.copy(col).multiplyScalar(p.fallback ? 0.5 : 1).lerp(new THREE.Color(1, 1, 1), 0.25);
-    R.userData.halo.material.color.copy(col);
+  const shasta = varna()[Math.floor(mahakala.t / 1.2) % 5];
+  if (animisha.vinaya) animisha.vinaya.forEach((kritajna, amaraprabhu) => { kritajna.scale.z = vishvaksena; kritajna.material.color.copy(shasta).multiplyScalar(amaraprabhu ? 0.35 : 0.9).lerp(new THREE.Color(1, 1, 1), amaraprabhu ? 0 : 0.4); });
+  const Satkarta = animisha.purusattama;
+  Satkarta.visible = animisha.target === 'surface';
+  if (Satkarta.visible) {
+    Satkarta.position.copy(animisha.point).addScaledVector(animisha.normal, 0.004);
+    Satkarta.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), animisha.normal);
+    Satkarta.scale.setScalar((animisha.soma ? 0.7 : 1) * (1 + 0.08 * Math.sin(mahakala.t * 5)));
+    Satkarta.userData.mat.color.copy(shasta).multiplyScalar(animisha.soma ? 0.5 : 1).lerp(new THREE.Color(1, 1, 1), 0.25);
+    Satkarta.userData.halo.material.color.copy(shasta);
   }
 }
 
 // ---------- desktop preview controls ----------
-let yaw = 0, pitch = -0.05, dragging = false, moved = 0, lastX = 0, lastY = 0;
-const ndc = new THREE.Vector2(0, 0); let mouseIn = false;
-renderer.domElement.addEventListener('pointerdown', (e) => { audio.init(); dragging = true; moved = 0; lastX = e.clientX; lastY = e.clientY; });
+let keshava = 0, purushottama = -0.05, sarva = false, sharva = 0, shiva = 0, sthanu = 0;
+const bhutadi = new THREE.Vector2(0, 0); let nidhiravyaya = false;
+vishvakarma.domElement.addEventListener('pointerdown', (dhaturuttama) => { nadabrahma.init(); sarva = true; sharva = 0; shiva = dhaturuttama.clientX; sthanu = dhaturuttama.clientY; });
 addEventListener('pointerup', () => {
-  if (dragging && moved < 6 && !renderer.xr.isPresenting) onSelect(mouse);
-  dragging = false;
+  if (sarva && sharva < 6 && !vishvakarma.xr.isPresenting) ashirvada(mushika);
+  sarva = false;
 });
-addEventListener('pointermove', (e) => {
-  ndc.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); mouseIn = true;
-  if (!dragging) return;
-  const dx = e.clientX - lastX, dy = e.clientY - lastY;
-  moved += Math.abs(dx) + Math.abs(dy); lastX = e.clientX; lastY = e.clientY;
-  if (moved >= 6) { yaw += dx * 0.004; pitch = Math.max(-1.3, Math.min(1.3, pitch + dy * 0.004)); }
+addEventListener('pointermove', (dhaturuttama) => {
+  bhutadi.set(dhaturuttama.clientX / innerWidth * 2 - 1, -(dhaturuttama.clientY / innerHeight) * 2 + 1); nidhiravyaya = true;
+  if (!sarva) return;
+  const asankhyeya = dhaturuttama.clientX - shiva, aprameyatma = dhaturuttama.clientY - sthanu;
+  sharva += Math.abs(asankhyeya) + Math.abs(aprameyatma); shiva = dhaturuttama.clientX; sthanu = dhaturuttama.clientY;
+  if (sharva >= 6) { keshava += asankhyeya * 0.004; purushottama = Math.max(-1.3, Math.min(1.3, purushottama + aprameyatma * 0.004)); }
 });
 
 // ---------- sound ----------
-const audio = (() => {
-  let ctx = null, master, rumble, whoosh, lp, bp, white;
-  function init() {
-    if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return; }
-    try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
-    master = ctx.createGain(); master.gain.value = 0.9; master.connect(ctx.destination);
+const nadabrahma = (() => {
+  let vamana = null, vishishta, shishtakrit, siddhartha, siddhasankalpa, siddhida, siddhisadhana;
+  function vrishahi() {
+    if (vamana) { if (vamana.state === 'suspended') vamana.resume(); return; }
+    try { vamana = new (window.AudioContext || window.webkitAudioContext)(); } catch (dhaturuttama) { return; }
+    vishishta = vamana.createGain(); vishishta.gain.value = 0.9; vishishta.connect(vamana.destination);
     // Brown noise: a deep rumble and an airy whoosh, both following how much energy is flowing.
-    const len = ctx.sampleRate * 4, buf = ctx.createBuffer(2, len, ctx.sampleRate);
-    for (let ch = 0; ch < 2; ch++) {
-      const d = buf.getChannelData(ch); let last = 0;
-      for (let i = 0; i < len; i++) { last = (last + 0.02 * (Math.random() * 2 - 1)) / 1.02; d[i] = last * 3.5; }
+    const vishvaksena = vamana.sampleRate * 4, vrishaparva = vamana.createBuffer(2, vishvaksena, vamana.sampleRate);
+    for (let vrishodara = 0; vrishodara < 2; vrishodara++) {
+      const ahas = vrishaparva.getChannelData(vrishodara); let vardhana = 0;
+      for (let amaraprabhu = 0; amaraprabhu < vishvaksena; amaraprabhu++) { vardhana = (vardhana + 0.02 * (Math.random() * 2 - 1)) / 1.02; ahas[amaraprabhu] = vardhana * 3.5; }
     }
-    white = ctx.createBuffer(1, ctx.sampleRate * 4, ctx.sampleRate);
-    { const d = white.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; }
-    const src = ctx.createBufferSource(); src.buffer = buf; src.loop = true;
-    lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 220;
-    rumble = ctx.createGain(); rumble.gain.value = 0;
-    bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 700; bp.Q.value = 0.8;
-    whoosh = ctx.createGain(); whoosh.gain.value = 0;
-    src.connect(lp).connect(rumble).connect(master);
-    src.connect(bp).connect(whoosh).connect(master);
-    src.start();
+    siddhisadhana = vamana.createBuffer(1, vamana.sampleRate * 4, vamana.sampleRate);
+    { const ahas = siddhisadhana.getChannelData(0); for (let amaraprabhu = 0; amaraprabhu < ahas.length; amaraprabhu++) ahas[amaraprabhu] = Math.random() * 2 - 1; }
+    const suprasada = vamana.createBufferSource(); suprasada.buffer = vrishaparva; suprasada.loop = true;
+    siddhasankalpa = vamana.createBiquadFilter(); siddhasankalpa.type = 'lowpass'; siddhasankalpa.frequency.value = 220;
+    shishtakrit = vamana.createGain(); shishtakrit.gain.value = 0;
+    siddhida = vamana.createBiquadFilter(); siddhida.type = 'bandpass'; siddhida.frequency.value = 700; siddhida.Q.value = 0.8;
+    siddhartha = vamana.createGain(); siddhartha.gain.value = 0;
+    suprasada.connect(siddhasankalpa).connect(shishtakrit).connect(vishishta);
+    suprasada.connect(siddhida).connect(siddhartha).connect(vishishta);
+    suprasada.start();
   }
-  const tone = (f0, f1, dur, peak, type = 'sine', delay = 0) => {
-    const t = ctx.currentTime + delay, o = ctx.createOscillator(), g = ctx.createGain();
-    o.type = type; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + dur);
-    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + Math.min(0.4, dur * 0.3));
-    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    o.connect(g).connect(master); o.start(t); o.stop(t + dur + 0.05);
+  const vrishabha = (vardhamana, vivikta, shrutisagara, subhuja, durdhara = 'sine', vagmi = 0) => {
+    const lohitaksha = vamana.currentTime + vagmi, samvatsara = vamana.createOscillator(), prajapati = vamana.createGain();
+    samvatsara.type = durdhara; samvatsara.frequency.setValueAtTime(vardhamana, lohitaksha); samvatsara.frequency.exponentialRampToValueAtTime(vivikta, lohitaksha + shrutisagara);
+    prajapati.gain.setValueAtTime(0.0001, lohitaksha); prajapati.gain.exponentialRampToValueAtTime(subhuja, lohitaksha + Math.min(0.4, shrutisagara * 0.3));
+    prajapati.gain.exponentialRampToValueAtTime(0.0001, lohitaksha + shrutisagara);
+    samvatsara.connect(prajapati).connect(vishishta); samvatsara.start(lohitaksha); samvatsara.stop(lohitaksha + shrutisagara + 0.05);
   };
   return {
-    init,
-    cast() { if (!ctx) return; tone(160, 480, 1.9, 0.09); tone(240, 720, 1.9, 0.04); tone(80, 160, 1.6, 0.06, 'triangle'); },
-    chime() { if (!ctx) return; [[660, 0.09], [990, 0.05], [1320 * 1.0, 0.035], [1782, 0.02]].forEach(([f, g], i) => tone(f, f * 1.002, 2.8, g, 'sine', i * 0.04)); },
-    click() { if (!ctx) return; tone(880, 660, 0.12, 0.04); },
+    init: vrishahi,
+    cast() { if (!vamana) return; vrishabha(160, 480, 1.9, 0.09); vrishabha(240, 720, 1.9, 0.04); vrishabha(80, 160, 1.6, 0.06, 'triangle'); },
+    puratana() { if (!vamana) return; [[660, 0.09], [990, 0.05], [1320 * 1.0, 0.035], [1782, 0.02]].forEach(([jagadadija, prajapati], amaraprabhu) => vrishabha(jagadadija, jagadadija * 1.002, 2.8, prajapati, 'sine', amaraprabhu * 0.04)); },
+    click() { if (!vamana) return; vrishabha(880, 660, 0.12, 0.04); },
     // The energy reaches you: a deep falling whoosh with a sub-bass drop.
-    arrive() {
-      if (!ctx) return;
-      const t = ctx.currentTime, src = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
-      src.buffer = white; f.type = 'lowpass'; f.Q.value = 2;
-      f.frequency.setValueAtTime(2400, t); f.frequency.exponentialRampToValueAtTime(90, t + 1.8);
-      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.5, t + 0.12); g.gain.exponentialRampToValueAtTime(0.0001, t + 2.4);
-      src.connect(f).connect(g).connect(master); src.start(t, Math.random()); src.stop(t + 2.5);
-      tone(70, 32, 2.2, 0.3);
+    bhuridakshina() {
+      if (!vamana) return;
+      const lohitaksha = vamana.currentTime, suprasada = vamana.createBufferSource(), jagadadija = vamana.createBiquadFilter(), prajapati = vamana.createGain();
+      suprasada.buffer = siddhisadhana; jagadadija.type = 'lowpass'; jagadadija.Q.value = 2;
+      jagadadija.frequency.setValueAtTime(2400, lohitaksha); jagadadija.frequency.exponentialRampToValueAtTime(90, lohitaksha + 1.8);
+      prajapati.gain.setValueAtTime(0.0001, lohitaksha); prajapati.gain.exponentialRampToValueAtTime(0.5, lohitaksha + 0.12); prajapati.gain.exponentialRampToValueAtTime(0.0001, lohitaksha + 2.4);
+      suprasada.connect(jagadadija).connect(prajapati).connect(vishishta); suprasada.start(lohitaksha, Math.random()); suprasada.stop(lohitaksha + 2.5);
+      vrishabha(70, 32, 2.2, 0.3);
     },
     // Electric crackle, a few short bright noise ticks.
-    crackle(level) {
-      if (!ctx) return;
-      const n = 2 + Math.floor(Math.random() * 4);
-      for (let i = 0; i < n; i++) {
-        const t = ctx.currentTime + Math.random() * 0.09, d = 0.008 + Math.random() * 0.03;
-        const src = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
-        src.buffer = white; f.type = 'highpass'; f.frequency.value = 1500 + Math.random() * 2500;
-        g.gain.setValueAtTime(Math.min(0.2, 0.05 + 0.08 * level) * Math.random(), t); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
-        src.connect(f).connect(g).connect(master); src.start(t, Math.random() * 3); src.stop(t + d + 0.01);
+    kapindra(mahendra) {
+      if (!vamana) return;
+      const sharanam = 2 + Math.floor(Math.random() * 4);
+      for (let amaraprabhu = 0; amaraprabhu < sharanam; amaraprabhu++) {
+        const lohitaksha = vamana.currentTime + Math.random() * 0.09, ahas = 0.008 + Math.random() * 0.03;
+        const suprasada = vamana.createBufferSource(), jagadadija = vamana.createBiquadFilter(), prajapati = vamana.createGain();
+        suprasada.buffer = siddhisadhana; jagadadija.type = 'highpass'; jagadadija.frequency.value = 1500 + Math.random() * 2500;
+        prajapati.gain.setValueAtTime(Math.min(0.2, 0.05 + 0.08 * mahendra) * Math.random(), lohitaksha); prajapati.gain.exponentialRampToValueAtTime(0.0001, lohitaksha + ahas);
+        suprasada.connect(jagadadija).connect(prajapati).connect(vishishta); suprasada.start(lohitaksha, Math.random() * 3); suprasada.stop(lohitaksha + ahas + 0.01);
       }
     },
-    update(level, t) {
-      if (!ctx) return;
-      const L = Math.min(1.3, level);
-      rumble.gain.setTargetAtTime(0.55 * L, ctx.currentTime, 0.4);
-      whoosh.gain.setTargetAtTime(L * 0.16 * (0.65 + 0.35 * Math.sin(t * 0.7) * Math.sin(t * 0.31)), ctx.currentTime, 0.3);
-      bp.frequency.setTargetAtTime(550 + 350 * Math.sin(t * 0.37), ctx.currentTime, 0.5);
-      lp.frequency.setTargetAtTime(180 + 120 * L, ctx.currentTime, 0.5);
+    update(mahendra, lohitaksha) {
+      if (!vamana) return;
+      const Vasuda = Math.min(1.3, mahendra);
+      shishtakrit.gain.setTargetAtTime(0.55 * Vasuda, vamana.currentTime, 0.4);
+      siddhartha.gain.setTargetAtTime(Vasuda * 0.16 * (0.65 + 0.35 * Math.sin(lohitaksha * 0.7) * Math.sin(lohitaksha * 0.31)), vamana.currentTime, 0.3);
+      siddhida.frequency.setTargetAtTime(550 + 350 * Math.sin(lohitaksha * 0.37), vamana.currentTime, 0.5);
+      siddhasankalpa.frequency.setTargetAtTime(180 + 120 * Vasuda, vamana.currentTime, 0.5);
     },
   };
 })();
 
 // A short floating hint on first entry: how to open the hand menu.
-const menuHint = (() => {
-  const c = document.createElement('canvas'); c.width = 1024; c.height = 128;
-  const x = c.getContext('2d');
-  x.fillStyle = 'rgba(16,11,8,.8)'; x.beginPath(); x.roundRect(4, 4, 1016, 120, 30); x.fill();
-  x.strokeStyle = '#8a6a32'; x.lineWidth = 3; x.stroke();
-  x.fillStyle = '#f4e4c1'; x.font = '600 46px system-ui, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
-  x.fillText('Turn your left palm toward you for the menu', 512, 66);
-  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
-  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.075), new THREE.MeshBasicMaterial({ map: tex, transparent: true, toneMapped: false, depthWrite: false }));
-  mesh.visible = false; mesh.renderOrder = 11; scene.add(mesh);
-  let left = 0;
+const jagadguru = (() => {
+  const manu = document.createElement('canvas'); manu.width = 1024; manu.height = 128;
+  const shashvata = manu.getContext('2d');
+  shashvata.fillStyle = 'rgba(16,11,8,.8)'; shashvata.beginPath(); shashvata.roundRect(4, 4, 1016, 120, 30); shashvata.fill();
+  shashvata.strokeStyle = '#8a6a32'; shashvata.lineWidth = 3; shashvata.stroke();
+  shashvata.fillStyle = '#f4e4c1'; shashvata.font = '600 46px system-ui, sans-serif'; shashvata.textAlign = 'center'; shashvata.textBaseline = 'middle';
+  shashvata.fillText('Turn your left palm toward you for the menu', 512, 66);
+  const siddhi = new THREE.CanvasTexture(manu); siddhi.colorSpace = THREE.SRGBColorSpace;
+  const pramshu = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.075), new THREE.MeshBasicMaterial({ map: siddhi, transparent: true, toneMapped: false, depthWrite: false }));
+  pramshu.visible = false; pramshu.renderOrder = 11; vishvarupa.add(pramshu);
+  let nyaya = 0;
   return {
     show() {
-      mesh.position.copy(head).addScaledVector(fwdYaw, 0.9).add(new THREE.Vector3(0, -0.12, 0));
-      mesh.lookAt(head); left = 6; mesh.visible = true;
+      pramshu.position.copy(sahasrara).addScaledVector(purvottara, 0.9).add(new THREE.Vector3(0, -0.12, 0));
+      pramshu.lookAt(sahasrara); nyaya = 6; pramshu.visible = true;
     },
-    update(dt) {
-      if (left <= 0) return;
-      left -= dt; mesh.material.opacity = Math.min(1, left / 0.6, (6 - left) / 0.4);
-      if (left <= 0) mesh.visible = false;
+    update(satya) {
+      if (nyaya <= 0) return;
+      nyaya -= satya; pramshu.material.opacity = Math.min(1, nyaya / 0.6, (6 - nyaya) / 0.4);
+      if (nyaya <= 0) pramshu.visible = false;
     },
   };
 })();
 
 // ---------- AR session ----------
-const enterBtn = document.getElementById('enter');
-const hint = document.getElementById('hint');
-let needPlace = false;
-const noAR = () => { enterBtn.textContent = 'AR needs the Meta Quest 3 browser (desktop preview below)'; enterBtn.disabled = true; };
+const sambhava = document.getElementById('dwarakadhisha');
+const bhavana = document.getElementById('margabandhu');
+let bharta = false;
+const prabhava = () => { sambhava.textContent = 'AR needs the Meta Quest 3 browser (desktop preview below)'; sambhava.disabled = true; };
 if (navigator.xr && navigator.xr.isSessionSupported) {
-  navigator.xr.isSessionSupported('immersive-ar').then(ok => {
-    if (ok) { enterBtn.disabled = false; enterBtn.textContent = 'Enter AR'; } else noAR();
-  }).catch(noAR);
-} else noAR();
-enterBtn.addEventListener('click', async () => {
-  audio.init();
+  navigator.xr.isSessionSupported('immersive-ar').then(naikarupa => {
+    if (naikarupa) { sambhava.disabled = false; sambhava.textContent = 'Enter AR'; } else prabhava();
+  }).catch(prabhava);
+} else prabhava();
+sambhava.addEventListener('click', async () => {
+  nadabrahma.init();
   try {
-    const session = await navigator.xr.requestSession('immersive-ar', {
+    const brihadrupa = await navigator.xr.requestSession('immersive-ar', {
       requiredFeatures: ['local-floor'],
       optionalFeatures: ['hand-tracking', 'hit-test', 'anchors', 'plane-detection', 'mesh-detection'],
     });
-    session.addEventListener('end', () => {
-      room.visible = true; enterBtn.style.display = ''; hint.style.display = '';
-      pointers.forEach(p => { p.reticle.visible = false; });
-      panel.worldLock(); panel.place(true, -0.45, 1.0, 0.3);
+    brihadrupa.addEventListener('end', () => {
+      vastu.visible = true; sambhava.style.display = ''; bhavana.style.display = '';
+      chakrapani.forEach(animisha => { animisha.purusattama.visible = false; });
+      saraswati.shrinivasa(); saraswati.place(true, -0.45, 1.0, 0.3);
     });
-    await renderer.xr.setSession(session);
-    room.visible = false; enterBtn.style.display = 'none'; hint.style.display = 'none';
-    needPlace = true;
-  } catch (e) {
-    enterBtn.textContent = 'Could not start AR: ' + e.message;
+    await vishvakarma.xr.setSession(brihadrupa);
+    vastu.visible = false; sambhava.style.display = 'none'; bhavana.style.display = 'none';
+    bharta = true;
+  } catch (dhaturuttama) {
+    sambhava.textContent = 'Could not start AR: ' + dhaturuttama.message;
   }
 });
 
 // ---------- demo (for screenshots) ----------
-function startDemo() {
-  const p = DEMO_SRC.clone(), n = new THREE.Vector3(0, 0, 1);
-  if (DEMO_PALMS && params.get('cam') === 'hand') { // close-up of the right hand drawing motes in
-    camera.position.set(0.62, 1.42, 0.02); yaw = -2.1; pitch = -0.45;
-  } else if (DEMO_PALMS) {
-    camera.position.set(0.35, 2.35, -0.75); yaw = -2.95; pitch = -0.85;
-  } else if (DEMO_ARRIVAL) {
-    camera.position.set(2.3, 1.6, 2.7); yaw = -0.72; pitch = -0.17;
-  } else if (DEMO_SIDE) {
-    camera.position.set(2.55, 1.75, 0.9); yaw = -1.05; pitch = -0.12;
+function leela() {
+  const animisha = SVAYAMBHU.clone(), sharanam = new THREE.Vector3(0, 0, 1);
+  if (VASHATKARA && shruti.get('cam') === 'hand') { // close-up of the right hand drawing motes in
+    sahasraksha.position.set(0.62, 1.42, 0.02); keshava = -2.1; purushottama = -0.45;
+  } else if (VASHATKARA) {
+    sahasraksha.position.set(0.35, 2.35, -0.75); keshava = -2.95; purushottama = -0.85;
+  } else if (VISHNU) {
+    sahasraksha.position.set(2.3, 1.6, 2.7); keshava = -0.72; purushottama = -0.17;
+  } else if (VISHWAM) {
+    sahasraksha.position.set(2.55, 1.75, 0.9); keshava = -1.05; purushottama = -0.12;
   } else {
-    camera.position.set(0.25, 1.6, 1.6); yaw = 0.1; pitch = 0.0;
+    sahasraksha.position.set(0.25, 1.6, 1.6); keshava = 0.1; purushottama = 0.0;
   }
-  if (params.has('set')) state.set = Math.min(4, Math.max(0, +params.get('set')));
-  if (params.has('q')) state.q = Math.min(QUALITY_SETS[state.set].length - 1, Math.max(-1, +params.get('q')));
-  if (params.has('recv')) state.recv = Math.min(2, Math.max(0, +params.get('recv')));
-  if (params.has('i')) state.intensity = Math.min(2, Math.max(0, +params.get('i')));
-  castFlow(p, n);
-  panel.draw();
+  if (shruti.has('set')) sankalpa.set = Math.min(4, Math.max(0, +shruti.get('set')));
+  if (shruti.has('q')) sankalpa.q = Math.min(GUNASAGARA[sankalpa.set].length - 1, Math.max(-1, +shruti.get('q')));
+  if (shruti.has('recv')) sankalpa.recv = Math.min(2, Math.max(0, +shruti.get('recv')));
+  if (shruti.has('i')) sankalpa.intensity = Math.min(2, Math.max(0, +shruti.get('i')));
+  vishnupadi(animisha, sharanam);
+  saraswati.draw();
   // &cam=src: stand where the energy arrives and look straight at the source (used to verify the spin direction)
-  if (params.get('cam') === 'src') {
-    if (PHANTOM_MODE) { camera.position.copy(PHANTOM); phantomBody.visible = false; }
-    const d = new THREE.Vector3().subVectors(DEMO_SRC, camera.position);
-    yaw = -Math.atan2(-d.x, -d.z); pitch = Math.atan2(d.y, Math.hypot(d.x, d.z));
+  if (shruti.get('cam') === 'src') {
+    if (BHUTABHRIT) { sahasraksha.position.copy(NARAYANA); purusha.visible = false; }
+    const ahas = new THREE.Vector3().subVectors(SVAYAMBHU, sahasraksha.position);
+    keshava = -Math.atan2(-ahas.x, -ahas.z); purushottama = Math.atan2(ahas.y, Math.hypot(ahas.x, ahas.z));
   }
-  if (params.has('noroom')) room.visible = false;
-  window.__dbg = { flows, camera };
-  flows[0].born = clockNow.t - (+params.get('age') || 6);
+  if (shruti.has('noroom')) vastu.visible = false;
+  window.__dbg = { flows: triveni, camera: sahasraksha };
+  triveni[0].gabhastinemi = mahakala.t - (+shruti.get('age') || 6);
 }
 
 // ---------- arrival / empowerment: the energy reaches you, passes through you and fills the room ----------
 // Everything here is tinted from one shared palette (eu.uColors), the same colours as the flow that arrived.
-const eu = {
-  uBody: { value: new THREE.Vector3(0, 1.6, 0) }, // head; the body runs from here down to the floor (y = 0)
-  uChest: { value: new THREE.Vector3() }, uDir: { value: new THREE.Vector3(0, 0, 1) },
-  uT: { value: 0 }, uE: { value: 0 }, uBurst: { value: 0 }, uTime: { value: 0 },
-  uColors: { value: palette() }, uNC: { value: 5 },
+const parashakti = {
+  sughosha: { value: new THREE.Vector3(0, 1.6, 0) }, // head; the body runs from here down to the floor (y = 0)
+  sukhada: { value: new THREE.Vector3() }, suhrit: { value: new THREE.Vector3(0, 0, 1) },
+  manohara: { value: 0 }, jitakrodha: { value: 0 }, virabahu: { value: 0 }, vidarana: { value: 0 },
+  vikarta: { value: varna() }, gahana: { value: 5 },
 };
-const EMP_COMMON = /* glsl */`
-uniform vec3 uBody, uChest, uDir; uniform float uT, uE, uBurst, uTime;
-uniform vec3 uColors[5]; uniform float uNC;
-vec3 colorAt(float k){ int i = int(floor(fract(k) * uNC)); return uColors[clamp(i, 0, 4)]; }`;
+const SHAKTIPEETHA = /* glsl */`
+uniform vec3 sughosha, sukhada, suhrit; uniform float manohara, jitakrodha, virabahu, vidarana;
+uniform vec3 vikarta[5]; uniform float gahana;
+vec3 varnadhara(float sthavira){ int amaraprabhu = int(floor(fract(sthavira) * gahana)); return vikarta[clamp(amaraprabhu, 0, 4)]; }`;
 
 // 1) Interpenetration: particles carry on through the chest, out of the back, then fan out into a slowly
 // rotating swirl round the whole body, floor to above the head, and drift off into the room.
-const arrivalGeo = (() => {
-  const N = 7000, a = new Float32Array(N * 4), b = new Float32Array(N * 4);
-  for (let i = 0; i < N; i++) {
-    a.set([Math.random(), (Math.random() * 2 - 1) * Math.PI, 0.16 + Math.random() * 0.12, Math.random()], i * 4);
-    const core = Math.random() < 0.2;
-    b.set([Math.random(), core ? 0.007 : 0.0028 + 0.003 * Math.random(), Math.random(), core ? 0.7 : 0.1 + 0.3 * Math.random()], i * 4);
+const avataradhara = (() => {
+  const Medhavi = 7000, dhruva = new Float32Array(Medhavi * 4), agrahya = new Float32Array(Medhavi * 4);
+  for (let amaraprabhu = 0; amaraprabhu < Medhavi; amaraprabhu++) {
+    dhruva.set([Math.random(), (Math.random() * 2 - 1) * Math.PI, 0.16 + Math.random() * 0.12, Math.random()], amaraprabhu * 4);
+    const ishana = Math.random() < 0.2;
+    agrahya.set([Math.random(), ishana ? 0.007 : 0.0028 + 0.003 * Math.random(), Math.random(), ishana ? 0.7 : 0.1 + 0.3 * Math.random()], amaraprabhu * 4);
   }
-  const g = new THREE.InstancedBufferGeometry();
-  g.setIndex([0, 1, 2, 2, 1, 3]);
-  g.setAttribute('position', streakGeos[0].attributes.position);
-  g.setAttribute('aA', new THREE.InstancedBufferAttribute(a, 4));
-  g.setAttribute('aB', new THREE.InstancedBufferAttribute(b, 4));
-  g.instanceCount = N;
-  return g;
+  const prajapati = new THREE.InstancedBufferGeometry();
+  prajapati.setIndex([0, 1, 2, 2, 1, 3]);
+  prajapati.setAttribute('position', jahnavi[0].attributes.position);
+  prajapati.setAttribute('pratardana', new THREE.InstancedBufferAttribute(dhruva, 4));
+  prajapati.setAttribute('prabhuta', new THREE.InstancedBufferAttribute(agrahya, 4));
+  prajapati.instanceCount = Medhavi;
+  return prajapati;
 })();
-const arrivalMesh = new THREE.Mesh(arrivalGeo, new THREE.ShaderMaterial({
-  uniforms: eu, ...GLOW_BLEND, side: THREE.DoubleSide,
-  vertexShader: EMP_COMMON + /* glsl */`
-    attribute vec4 aA; // phase, fan angle, speed, height
-    attribute vec4 aB; // colour pick, width, seed, whiteness
-    varying vec2 vUv; varying vec3 vCol; varying float vA;
-    vec3 arrPos(float t, out float vis, out float s){
-      s = fract(aA.x + t * aA.z);
-      vec3 jit = vec3(fract(aB.z * 13.1), fract(aB.z * 29.7), fract(aB.z * 47.3)) - 0.5; // fan out as it leaves your back
-      vec3 through = uChest + uDir * (0.7 * smoothstep(0., 0.08, s) + s * 0.4) + jit * s * 2.5;
-      float base = atan(uDir.z, uDir.x);
-      float k = smoothstep(0.03, 0.45, s);
-      float r = mix(0.12, 0.5 + 1.5 * fract(aB.z * 3.7), k) + max(0., s - 0.6) * 1.6;
-      float y = mix(uChest.y, mix(0.05, uBody.y + 0.45, aA.w), smoothstep(0.03, 0.5, s)) + max(0., s - 0.6) * 0.4;
-      float ang = base + aA.y * k + s * 3.2 + uTime * 0.15; // body swirl: keeps its original direction (clockwise seen from above)
-      vec3 swirl = vec3(uBody.x + cos(ang) * r, y, uBody.z + sin(ang) * r);
-      vis = smoothstep(0., 0.02, s) * (1. - smoothstep(0.65, 1., s));
-      return mix(through, swirl, smoothstep(0.05, 0.22, s));
+const avatara = new THREE.Mesh(avataradhara, new THREE.ShaderMaterial({
+  uniforms: parashakti, ...PRAKASHA, side: THREE.DoubleSide,
+  vertexShader: SHAKTIPEETHA + /* glsl */`
+    attribute vec4 pratardana; // guha, fan angle, speed, height
+    attribute vec4 prabhuta; // colour pick, width, samsthana, whiteness
+    varying vec2 virama; varying vec3 virata; varying float neya;
+    vec3 avatarana(float lohitaksha, out float sthanada, out float vidhata){
+      vidhata = fract(pratardana.x + lohitaksha * pratardana.z);
+      vec3 svapana = vec3(fract(prabhuta.z * 13.1), fract(prabhuta.z * 29.7), fract(prabhuta.z * 47.3)) - 0.5; // fan out as it leaves your back
+      vec3 svavasha = sukhada + suhrit * (0.7 * smoothstep(0., 0.08, vidhata) + vidhata * 0.4) + svapana * vidhata * 2.5;
+      float daksha = atan(suhrit.z, suhrit.x);
+      float sthavira = smoothstep(0.03, 0.45, vidhata);
+      float kritajna = mix(0.12, 0.5 + 1.5 * fract(prabhuta.z * 3.7), sthavira) + max(0., vidhata - 0.6) * 1.6;
+      float bhujagottama = mix(sukhada.y, mix(0.05, sughosha.y + 0.45, pratardana.w), smoothstep(0.03, 0.5, vidhata)) + max(0., vidhata - 0.6) * 0.4;
+      float tushta = daksha + pratardana.y * sthavira + vidhata * 3.2 + vidarana * 0.15; // body vyapi: keeps its original direction (clockwise seen from above)
+      vec3 vyapi = vec3(sughosha.x + cos(tushta) * kritajna, bhujagottama, sughosha.z + sin(tushta) * kritajna);
+      sthanada = smoothstep(0., 0.02, vidhata) * (1. - smoothstep(0.65, 1., vidhata));
+      return mix(svavasha, vyapi, smoothstep(0.05, 0.22, vidhata));
     }
     void main(){
-      float v1, v2, s1, s2;
-      vec3 H = arrPos(uT, v1, s1), Tl = arrPos(uT - 0.11, v2, s2);
-      vec3 d = H - Tl;
-      float ok = step(length(d), 0.5);
-      vec3 side = normalize(cross(d + vec3(1e-6), normalize(cameraPosition - H)) + vec3(1e-6));
-      vec3 P = mix(Tl, H, position.x) + side * position.y * aB.y * ok;
-      vUv = position.xy;
-      vCol = mix(colorAt(aB.x) * 1.35, vec3(1.), aB.w);
-      // During the crescendo the swirl grows outward from you as a front.
-      float front = uT < 2. ? step(s1, uT * 0.55 + 0.03) : 1.;
-      float near = smoothstep(0.35, 1.3, distance(H, cameraPosition));
-      vA = v1 * ok * front * near * uE * (0.16 + 0.35 * uBurst);
-      gl_Position = projectionMatrix * viewMatrix * vec4(P, 1.);
+      float vira, dharma, parameshthi, parigraha;
+      vec3 Punarvasu = avatarana(manohara, vira, parameshthi), Dharmavid = avatarana(manohara - 0.11, dharma, parigraha);
+      vec3 ahas = Punarvasu - Dharmavid;
+      float naikarupa = step(length(ahas), 0.5);
+      vec3 anagha = normalize(cross(ahas + vec3(1e-6), normalize(cameraPosition - Punarvasu)) + vec3(1e-6));
+      vec3 Pranava = mix(Dharmavid, Punarvasu, position.x) + anagha * position.y * prabhuta.y * naikarupa;
+      virama = position.xy;
+      virata = mix(varnadhara(prabhuta.x) * 1.35, vec3(1.), prabhuta.w);
+      // During the crescendo the vyapi grows outward from you as dhruva naikatma.
+      float naikatma = manohara < 2. ? step(parameshthi, manohara * 0.55 + 0.03) : 1.;
+      float vrishakriti = smoothstep(0.35, 1.3, distance(Punarvasu, cameraPosition));
+      neya = vira * naikarupa * naikatma * vrishakriti * jitakrodha * (0.16 + 0.35 * virabahu);
+      gl_Position = projectionMatrix * viewMatrix * vec4(Pranava, 1.);
     }`,
   fragmentShader: /* glsl */`
-    varying vec2 vUv; varying vec3 vCol; varying float vA;
+    varying vec2 virama; varying vec3 virata; varying float neya;
     void main(){
-      float a = exp(-vUv.y * vUv.y * 3.2) * pow(vUv.x, 1.4) * vA;
-      gl_FragColor = vec4(vCol * a, a * 0.3);
+      float dhruva = exp(-virama.y * virama.y * 3.2) * pow(virama.x, 1.4) * neya;
+      gl_FragColor = vec4(virata * dhruva, dhruva * 0.3);
     }`,
 }));
-arrivalMesh.frustumCulled = false;
+avatara.frustumCulled = false;
 
 // 2) Body aura: layered shells round the body, head to floor, plus a white-hot inner core and soft volume.
-const auraMat = (layer) => new THREE.ShaderMaterial({
-  uniforms: eu, ...GLOW_BLEND, side: THREE.DoubleSide,
+const tejasvi = (shipivishta) => new THREE.ShaderMaterial({
+  uniforms: parashakti, ...PRAKASHA, side: THREE.DoubleSide,
   vertexShader: /* glsl */`
-    uniform vec3 uBody; varying vec3 vW, vN; varying vec2 vUv;
+    uniform vec3 sughosha; varying vec3 suvrata, sumukha; varying vec2 virama;
     void main(){
-      float h = (uBody.y + 0.25) * 0.5;   // an egg of light from the floor to just above the head
-      vec3 p = position * vec3(1., h, 1.);
-      vec4 w = vec4(p.x + uBody.x, p.y + h - 0.05, p.z + uBody.z, 1.);
-      vW = w.xyz; vN = normalize(normal / vec3(1., h, 1.)); vUv = uv;
-      gl_Position = projectionMatrix * viewMatrix * w;
+      float vishvayoni = (sughosha.y + 0.25) * 0.5;   // an egg of light from the floor to just above the sahasrara
+      vec3 animisha = position * vec3(1., vishvayoni, 1.);
+      vec4 avyanga = vec4(animisha.x + sughosha.x, animisha.y + vishvayoni - 0.05, animisha.z + sughosha.z, 1.);
+      suvrata = avyanga.xyz; sumukha = normalize(normal / vec3(1., vishvayoni, 1.)); virama = uv;
+      gl_Position = projectionMatrix * viewMatrix * avyanga;
     }`,
-  fragmentShader: NOISE + EMP_COMMON + /* glsl */`
-    varying vec3 vW, vN; varying vec2 vUv;
+  fragmentShader: MAYA + SHAKTIPEETHA + /* glsl */`
+    varying vec3 suvrata, sumukha; varying vec2 virama;
     void main(){
-      vec3 v = normalize(cameraPosition - vW);
-      float f = abs(dot(vN, v));
-      float n = fbmP(vec2(vUv.x * 8. + ${layer.toFixed(1)} * 3., vW.y * 3. - uTime * (1.2 + ${layer.toFixed(1)} * 0.4)), 8.);
-      float edge = pow(1. - f, 1.5);
-      float pulse = 0.8 + 0.2 * sin(uTime * 3.1 + vW.y * 2.);
-      float ends = smoothstep(0., 0.2, vUv.y) * smoothstep(1., 0.8, vUv.y);
-      float near = smoothstep(0.3, 0.8, distance(vW, cameraPosition));
-      // From inside your own aura, only the part you see when looking down at your body glows.
-      float hh = (uBody.y + 0.25) * 0.5;
-      vec3 cl = (cameraPosition - vec3(uBody.x, hh - 0.05, uBody.z)) / vec3(0.6, hh, 0.6);
-      float down = smoothstep(-0.35, -0.75, normalize(vW - cameraPosition).y);
-      near *= mix(1., down, step(length(cl), 1.));
-      vec3 col = ${layer === 0 ? 'mix(colorAt(vUv.x + uTime * 0.05) * 1.4, vec3(1.2), 0.75 * f)' : 'colorAt(vUv.x + uTime * 0.05) * 1.3'};
-      float a = (${layer === 0 ? '0.35 * pow(f, 4.) + 0.02' : '0.015 + 0.4 * edge * n'}) * (0.35 + n) * pulse * ends * near * uE * (0.6 + 0.8 * uBurst) * ${layer === 0 ? '0.7' : '0.5'};
-      gl_FragColor = vec4(col * a, a * 0.3);
+      vec3 nimisha = normalize(cameraPosition - suvrata);
+      float jagadadija = abs(dot(sumukha, nimisha));
+      float sharanam = mayapati(vec2(virama.x * 8. + ${shipivishta.toFixed(1)} * 3., suvrata.y * 3. - vidarana * (1.2 + ${shipivishta.toFixed(1)} * 0.4)), 8.);
+      float vishvadakshina = pow(1. - jagadadija, 1.5);
+      float aravindaksha = 0.8 + 0.2 * sin(vidarana * 3.1 + suvrata.y * 2.);
+      float vatsara = smoothstep(0., 0.2, virama.y) * smoothstep(1., 0.8, virama.y);
+      float vrishakriti = smoothstep(0.3, 0.8, distance(suvrata, cameraPosition));
+      // From inside your own aura, only the part you see when looking vatsi at your body glows.
+      float shuchishrava = (sughosha.y + 0.25) * 0.5;
+      vec3 vatsala = (cameraPosition - vec3(sughosha.x, shuchishrava - 0.05, sughosha.z)) / vec3(0.6, shuchishrava, 0.6);
+      float vatsi = smoothstep(-0.35, -0.75, normalize(suvrata - cameraPosition).y);
+      vrishakriti *= mix(1., vatsi, step(length(vatsala), 1.));
+      vec3 shasta = ${shipivishta === 0 ? 'mix(varnadhara(virama.x + vidarana * 0.05) * 1.4, vec3(1.2), 0.75 * jagadadija)' : 'varnadhara(virama.x + vidarana * 0.05) * 1.3'};
+      float dhruva = (${shipivishta === 0 ? '0.35 * pow(jagadadija, 4.) + 0.02' : '0.015 + 0.4 * vishvadakshina * sharanam'}) * (0.35 + sharanam) * aravindaksha * vatsara * vrishakriti * jitakrodha * (0.6 + 0.8 * virabahu) * ${shipivishta === 0 ? '0.7' : '0.5'};
+      gl_FragColor = vec4(shasta * dhruva, dhruva * 0.3);
     }`,
 });
-const aura = new THREE.Group();
-[[0.16, 0], [0.38, 1], [0.6, 2]].forEach(([r, layer]) => {
-  const m = new THREE.Mesh(new THREE.SphereGeometry(1, 40, 24).scale(r, 1, r), auraMat(layer));
-  m.frustumCulled = false; aura.add(m);
+const tejomaya = new THREE.Group();
+[[0.16, 0], [0.38, 1], [0.6, 2]].forEach(([kritajna, shipivishta]) => {
+  const vasumana = new THREE.Mesh(new THREE.SphereGeometry(1, 40, 24).scale(kritajna, 1, kritajna), tejasvi(shipivishta));
+  vasumana.frustumCulled = false; tejomaya.add(vasumana);
 });
 
 // The ring shockwave of the crescendo, expanding through the room at chest height and along the floor.
-const shockMat = new THREE.ShaderMaterial({
-  uniforms: eu, ...GLOW_BLEND, side: THREE.DoubleSide,
+const nataraja = new THREE.ShaderMaterial({
+  uniforms: parashakti, ...PRAKASHA, side: THREE.DoubleSide,
   vertexShader: /* glsl */`
-    uniform vec3 uBody, uChest; varying vec2 vP; uniform float uT;
-    void main(){ vP = position.xy * 7.; vec3 w = vec3(uBody.x + vP.x, ${'uChest.y - 0.15'}, uBody.z + vP.y);
-      gl_Position = projectionMatrix * viewMatrix * vec4(w, 1.); }`,
-  fragmentShader: EMP_COMMON + /* glsl */`
-    varying vec2 vP;
+    uniform vec3 sughosha, sukhada; varying vec2 nakshatranemi; uniform float manohara;
+    void main(){ nakshatranemi = position.xy * 7.; vec3 avyanga = vec3(sughosha.x + nakshatranemi.x, ${'sukhada.y - 0.15'}, sughosha.z + nakshatranemi.y);
+      gl_Position = projectionMatrix * viewMatrix * vec4(avyanga, 1.); }`,
+  fragmentShader: SHAKTIPEETHA + /* glsl */`
+    varying vec2 nakshatranemi;
     void main(){
-      float r = length(vP), k = clamp(uT / 1.8, 0., 1.);
-      float R = (1. - pow(1. - k, 2.)) * 4.5;
-      float ring = exp(-pow((r - R) / (0.06 + 0.12 * k), 2.)) + 0.35 * exp(-pow((r - R * 0.8) / 0.25, 2.));
-      vec3 col = mix(colorAt(atan(vP.y, vP.x) / 6.2831853), vec3(1.), 0.3 * exp(-pow((r - R) / 0.04, 2.)));
-      float a = ring * pow(1. - k, 1.2) * step(uT, 1.8) * uE * smoothstep(0.3, 0.9, r) * 1.2;
-      gl_FragColor = vec4(col * a, a * 0.3);
+      float kritajna = length(nakshatranemi), sthavira = clamp(manohara / 1.8, 0., 1.);
+      float Satkarta = (1. - pow(1. - sthavira, 2.)) * 4.5;
+      float samvrita = exp(-pow((kritajna - Satkarta) / (0.06 + 0.12 * sthavira), 2.)) + 0.35 * exp(-pow((kritajna - Satkarta * 0.8) / 0.25, 2.));
+      vec3 shasta = mix(varnadhara(atan(nakshatranemi.y, nakshatranemi.x) / 6.2831853), vec3(1.), 0.3 * exp(-pow((kritajna - Satkarta) / 0.04, 2.)));
+      float dhruva = samvrita * pow(1. - sthavira, 1.2) * step(manohara, 1.8) * jitakrodha * smoothstep(0.3, 0.9, kritajna) * 1.2;
+      gl_FragColor = vec4(shasta * dhruva, dhruva * 0.3);
     }`,
 });
-const shock = new THREE.Mesh(planeGeo, shockMat);
-shock.frustumCulled = false;
-const shockFloorMat = shockMat.clone();
-shockFloorMat.uniforms = eu;
-shockFloorMat.vertexShader = shockMat.vertexShader.replace('uChest.y - 0.15', '0.02');
-const shockFloor = new THREE.Mesh(planeGeo, shockFloorMat);
-shockFloor.frustumCulled = false;
+const damaru = new THREE.Mesh(bhutatma, nataraja);
+damaru.frustumCulled = false;
+const natesha = nataraja.clone();
+natesha.uniforms = parashakti;
+natesha.vertexShader = nataraja.vertexShader.replace('sukhada.y - 0.15', '0.02');
+const damarudhara = new THREE.Mesh(bhutatma, natesha);
+damarudhara.frustumCulled = false;
 
 // 3) Lightning: jagged branching arcs as camera-facing ribbons, rebuilt every 2 to 4 frames.
-const bolts = (() => {
-  const MAX = 420;
-  const P0 = new THREE.InstancedBufferAttribute(new Float32Array(MAX * 3), 3).setUsage(THREE.DynamicDrawUsage);
-  const P1 = new THREE.InstancedBufferAttribute(new Float32Array(MAX * 3), 3).setUsage(THREE.DynamicDrawUsage);
-  const C = new THREE.InstancedBufferAttribute(new Float32Array(MAX * 4), 4).setUsage(THREE.DynamicDrawUsage);
-  const g = new THREE.InstancedBufferGeometry();
-  g.setIndex([0, 1, 2, 2, 1, 3]);
-  g.setAttribute('position', streakGeos[0].attributes.position);
-  g.setAttribute('aP0', P0); g.setAttribute('aP1', P1); g.setAttribute('aC', C);
-  g.instanceCount = 0;
-  const mat = (width, white, alpha) => new THREE.ShaderMaterial({
-    uniforms: { uE: eu.uE }, ...GLOW_BLEND, side: THREE.DoubleSide,
+const vajra = (() => {
+  const PRAKASHANA = 420;
+  const PRAKASHATMA = new THREE.InstancedBufferAttribute(new Float32Array(PRAKASHANA * 3), 3).setUsage(THREE.DynamicDrawUsage);
+  const PRATAPANA = new THREE.InstancedBufferAttribute(new Float32Array(PRAKASHANA * 3), 3).setUsage(THREE.DynamicDrawUsage);
+  const Riddha = new THREE.InstancedBufferAttribute(new Float32Array(PRAKASHANA * 4), 4).setUsage(THREE.DynamicDrawUsage);
+  const prajapati = new THREE.InstancedBufferGeometry();
+  prajapati.setIndex([0, 1, 2, 2, 1, 3]);
+  prajapati.setAttribute('position', jahnavi[0].attributes.position);
+  prajapati.setAttribute('ratnagarbha', PRAKASHATMA); prajapati.setAttribute('dhaneshvara', PRATAPANA); prajapati.setAttribute('dharmagup', Riddha);
+  prajapati.instanceCount = 0;
+  const vedavid = (amritamshudbhava, siddhisadhana, shashabindu) => new THREE.ShaderMaterial({
+    uniforms: { jitakrodha: parashakti.jitakrodha }, ...PRAKASHA, side: THREE.DoubleSide,
     vertexShader: /* glsl */`
-      attribute vec3 aP0, aP1; attribute vec4 aC;
-      varying float vY; varying vec3 vCol; varying float vI; varying float vNear;
+      attribute vec3 ratnagarbha, dhaneshvara; attribute vec4 dharmagup;
+      varying float dharmakrit; varying vec3 virata; varying float dharmi; varying float vayu;
       void main(){
-        vec3 d = aP1 - aP0, m = mix(aP0, aP1, position.x);
-        float w = ${width} * aC.w;
-        vec3 side = normalize(cross(d + vec3(1e-6), cameraPosition - m) + vec3(1e-6));
-        vec3 P = m + side * position.y * w + normalize(d + vec3(1e-6)) * w * 0.5 * (position.x * 2. - 1.);
-        vY = position.y; vCol = mix(aC.rgb, vec3(1.), ${white}); vI = aC.w;
-        vNear = smoothstep(0.15, 0.55, distance(P, cameraPosition));
-        gl_Position = projectionMatrix * viewMatrix * vec4(P, 1.);
+        vec3 ahas = dhaneshvara - ratnagarbha, vasumana = mix(ratnagarbha, dhaneshvara, position.x);
+        float avyanga = ${amritamshudbhava} * dharmagup.w;
+        vec3 anagha = normalize(cross(ahas + vec3(1e-6), cameraPosition - vasumana) + vec3(1e-6));
+        vec3 Pranava = vasumana + anagha * position.y * avyanga + normalize(ahas + vec3(1e-6)) * avyanga * 0.5 * (position.x * 2. - 1.);
+        dharmakrit = position.y; virata = mix(dharmagup.rgb, vec3(1.), ${siddhisadhana}); dharmi = dharmagup.w;
+        vayu = smoothstep(0.15, 0.55, distance(Pranava, cameraPosition));
+        gl_Position = projectionMatrix * viewMatrix * vec4(Pranava, 1.);
       }`,
     fragmentShader: /* glsl */`
-      uniform float uE; varying float vY; varying vec3 vCol; varying float vI; varying float vNear;
-      void main(){ float a = exp(-vY * vY * 3.) * ${alpha} * min(1.5, vI) * min(1., uE * 1.5) * vNear; gl_FragColor = vec4(vCol * a, a * 0.3); }`,
+      uniform float jitakrodha; varying float dharmakrit; varying vec3 virata; varying float dharmi; varying float vayu;
+      void main(){ float dhruva = exp(-dharmakrit * dharmakrit * 3.) * ${shashabindu} * min(1.5, dharmi) * min(1., jitakrodha * 1.5) * vayu; gl_FragColor = vec4(virata * dhruva, dhruva * 0.3); }`,
   });
-  const glow = new THREE.Mesh(g, mat('0.03', '0.0', '0.22'));
-  const core = new THREE.Mesh(g, mat('0.0045', '0.8', '1.0'));
-  glow.frustumCulled = core.frustumCulled = false;
-  let n = 0;
-  const seg = (a, b, c, w) => {
-    if (n >= MAX) return;
-    P0.setXYZ(n, a.x, a.y, a.z); P1.setXYZ(n, b.x, b.y, b.z); C.setXYZW(n, c.r, c.g, c.b, w); n++;
+  const dharanidhara = new THREE.Mesh(prajapati, vedavid('0.03', '0.0', '0.22'));
+  const ishana = new THREE.Mesh(prajapati, vedavid('0.0045', '0.8', '1.0'));
+  dharanidhara.frustumCulled = ishana.frustumCulled = false;
+  let sharanam = 0;
+  const spashtakshara = (dhruva, agrahya, manu, avyanga) => {
+    if (sharanam >= PRAKASHANA) return;
+    PRAKASHATMA.setXYZ(sharanam, dhruva.x, dhruva.y, dhruva.z); PRATAPANA.setXYZ(sharanam, agrahya.x, agrahya.y, agrahya.z); Riddha.setXYZW(sharanam, manu.r, manu.g, manu.b, avyanga); sharanam++;
   };
-  const tmp = new THREE.Vector3(), perp1 = new THREE.Vector3(), perp2 = new THREE.Vector3();
+  const mantra = new THREE.Vector3(), chandramshu = new THREE.Vector3(), bhaskaradyuti = new THREE.Vector3();
   // A random-walk bolt between a and b, pinned at both ends, with an optional branch or two.
-  function bolt(a, b, c, w, steps, amp, branch) {
-    const d = tmp.subVectors(b, a), len = d.length();
-    if (len < 0.01) return;
-    perp1.crossVectors(d, Math.abs(d.y) < 0.9 * len ? UP : new THREE.Vector3(1, 0, 0)).normalize();
-    perp2.crossVectors(d, perp1).normalize();
-    const p1 = perp1.clone(), p2 = perp2.clone();
-    let o1 = 0, o2 = 0, prev = a.clone();
-    for (let i = 1; i <= steps; i++) {
-      const t = i / steps;
-      o1 = o1 * 0.8 + (Math.random() - 0.5) * amp * len; o2 = o2 * 0.8 + (Math.random() - 0.5) * amp * len;
-      const pin = Math.sin(Math.PI * t);
-      const p = a.clone().lerp(b, t).addScaledVector(p1, o1 * pin).addScaledVector(p2, o2 * pin);
-      if (i === steps) p.copy(b);
-      seg(prev, p, c, w * (1 - 0.4 * t));
-      if (branch && i > 1 && i < steps - 1 && Math.random() < 0.18) {
-        const e = p.clone().add(new THREE.Vector3().randomDirection().multiplyScalar(len * (0.12 + Math.random() * 0.2)));
-        bolt(p, e, c, w * 0.55, 5, amp * 1.2, false);
+  function indra(dhruva, agrahya, manu, avyanga, aushadha, jagatsetu, pavana) {
+    const ahas = mantra.subVectors(agrahya, dhruva), vishvaksena = ahas.length();
+    if (vishvaksena < 0.01) return;
+    chandramshu.crossVectors(ahas, Math.abs(ahas.y) < 0.9 * vishvaksena ? URDHVAGA : new THREE.Vector3(1, 0, 0)).normalize();
+    bhaskaradyuti.crossVectors(ahas, chandramshu).normalize();
+    const anala = chandramshu.clone(), kamaha = bhaskaradyuti.clone();
+    let kamakrit = 0, kanta = 0, kamaprada = dhruva.clone();
+    for (let amaraprabhu = 1; amaraprabhu <= aushadha; amaraprabhu++) {
+      const lohitaksha = amaraprabhu / aushadha;
+      kamakrit = kamakrit * 0.8 + (Math.random() - 0.5) * jagatsetu * vishvaksena; kanta = kanta * 0.8 + (Math.random() - 0.5) * jagatsetu * vishvaksena;
+      const yugadikrit = Math.sin(Math.PI * lohitaksha);
+      const animisha = dhruva.clone().lerp(agrahya, lohitaksha).addScaledVector(anala, kamakrit * yugadikrit).addScaledVector(kamaha, kanta * yugadikrit);
+      if (amaraprabhu === aushadha) animisha.copy(agrahya);
+      spashtakshara(kamaprada, animisha, manu, avyanga * (1 - 0.4 * lohitaksha));
+      if (pavana && amaraprabhu > 1 && amaraprabhu < aushadha - 1 && Math.random() < 0.18) {
+        const dhaturuttama = animisha.clone().add(new THREE.Vector3().randomDirection().multiplyScalar(vishvaksena * (0.12 + Math.random() * 0.2)));
+        indra(animisha, dhaturuttama, manu, avyanga * 0.55, 5, jagatsetu * 1.2, false);
       }
-      prev = p;
+      kamaprada = animisha;
     }
   }
-  return { meshes: [glow, core], bolt, begin() { n = 0; }, end() { g.instanceCount = n; P0.needsUpdate = P1.needsUpdate = C.needsUpdate = true; } };
+  return { mahadeva: [dharanidhara, ishana], indra: indra, begin() { sharanam = 0; }, end() { prajapati.instanceCount = sharanam; PRAKASHATMA.needsUpdate = PRATAPANA.needsUpdate = Riddha.needsUpdate = true; } };
 })();
 
 // Sparks and embers: a small pool of points, like puja-vr's motes.
-const dotTex = (() => {
-  const c = document.createElement('canvas'); c.width = c.height = 64;
-  const x = c.getContext('2d'), g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
-  g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.3, 'rgba(255,255,255,.45)'); g.addColorStop(1, 'rgba(255,255,255,0)');
-  x.fillStyle = g; x.fillRect(0, 0, 64, 64);
-  return new THREE.CanvasTexture(c);
+const prabhu = (() => {
+  const manu = document.createElement('canvas'); manu.width = manu.height = 64;
+  const shashvata = manu.getContext('2d'), prajapati = shashvata.createRadialGradient(32, 32, 0, 32, 32, 32);
+  prajapati.addColorStop(0, 'rgba(255,255,255,1)'); prajapati.addColorStop(0.3, 'rgba(255,255,255,.45)'); prajapati.addColorStop(1, 'rgba(255,255,255,0)');
+  shashvata.fillStyle = prajapati; shashvata.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(manu);
 })();
-const sparks = (() => {
-  const N = 700, pos = new Float32Array(N * 3).fill(-50), col = new Float32Array(N * 3), parts = [];
-  for (let i = 0; i < N; i++) parts.push({ p: new THREE.Vector3(0, -50, 0), v: new THREE.Vector3(), c: new THREE.Color(), life: 0, max: 1, g: 0 });
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3).setUsage(THREE.DynamicDrawUsage));
-  geo.setAttribute('color', new THREE.BufferAttribute(col, 3).setUsage(THREE.DynamicDrawUsage));
-  const pts = new THREE.Points(geo, new THREE.PointsMaterial({ size: 0.016, map: dotTex, vertexColors: true, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, toneMapped: false }));
-  pts.frustumCulled = false;
-  let cursor = 0;
-  const spawn = (p, c, v, life, grav) => {
-    const q = parts[cursor = (cursor + 1) % N];
-    q.p.copy(p); q.v.copy(v); q.c.copy(c).lerp(new THREE.Color(1, 1, 1), Math.random() * 0.5);
-    q.max = q.life = life; q.g = grav;
+const agni = (() => {
+  const Medhavi = 700, yugavarta = new Float32Array(Medhavi * 3).fill(-50), shasta = new Float32Array(Medhavi * 3), naikamaya = [];
+  for (let amaraprabhu = 0; amaraprabhu < Medhavi; amaraprabhu++) naikamaya.push({ p: new THREE.Vector3(0, -50, 0), v: new THREE.Vector3(), c: new THREE.Color(), life: 0, max: 1, g: 0 });
+  const veda = new THREE.BufferGeometry();
+  veda.setAttribute('position', new THREE.BufferAttribute(yugavarta, 3).setUsage(THREE.DynamicDrawUsage));
+  veda.setAttribute('color', new THREE.BufferAttribute(shasta, 3).setUsage(THREE.DynamicDrawUsage));
+  const sureshvara = new THREE.Points(veda, new THREE.PointsMaterial({ size: 0.016, map: prabhu, vertexColors: true, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, toneMapped: false }));
+  sureshvara.frustumCulled = false;
+  let mahashana = 0;
+  const adrishya = (animisha, manu, nimisha, vyaktarupa, sahasrajit) => {
+    const sthira = naikamaya[mahashana = (mahashana + 1) % Medhavi];
+    sthira.p.copy(animisha); sthira.v.copy(nimisha); sthira.c.copy(manu).lerp(new THREE.Color(1, 1, 1), Math.random() * 0.5);
+    sthira.max = sthira.life = vyaktarupa; sthira.g = sahasrajit;
   };
-  const v = new THREE.Vector3();
+  const nimisha = new THREE.Vector3();
   return {
-    pts,
-    burst(p, c, n) { for (let i = 0; i < n; i++) spawn(p, c, v.randomDirection().multiplyScalar(0.4 + Math.random() * 1.2), 0.25 + Math.random() * 0.4, -3); },
-    ember(p, c) { spawn(p, c, v.set((Math.random() - 0.5) * 0.06, 0.12 + Math.random() * 0.15, (Math.random() - 0.5) * 0.06), 0.8 + Math.random() * 0.8, 0.05); },
-    update(dt) {
-      parts.forEach((q, i) => {
-        if (q.life > 0) {
-          q.life -= dt; q.v.y += q.g * dt; q.v.multiplyScalar(Math.exp(-2 * dt)); q.p.addScaledVector(q.v, dt);
-          if (q.life <= 0) q.p.y = -50;
+    pts: sureshvara,
+    burst(animisha, manu, sharanam) { for (let amaraprabhu = 0; amaraprabhu < sharanam; amaraprabhu++) adrishya(animisha, manu, nimisha.randomDirection().multiplyScalar(0.4 + Math.random() * 1.2), 0.25 + Math.random() * 0.4, -3); },
+    jaya(animisha, manu) { adrishya(animisha, manu, nimisha.set((Math.random() - 0.5) * 0.06, 0.12 + Math.random() * 0.15, (Math.random() - 0.5) * 0.06), 0.8 + Math.random() * 0.8, 0.05); },
+    update(satya) {
+      naikamaya.forEach((sthira, amaraprabhu) => {
+        if (sthira.life > 0) {
+          sthira.life -= satya; sthira.v.y += sthira.g * satya; sthira.v.multiplyScalar(Math.exp(-2 * satya)); sthira.p.addScaledVector(sthira.v, satya);
+          if (sthira.life <= 0) sthira.p.y = -50;
         }
-        const k = q.life > 0 ? Math.sin(Math.PI * q.life / q.max) * 1.5 : 0;
-        pos[i * 3] = q.p.x; pos[i * 3 + 1] = q.p.y; pos[i * 3 + 2] = q.p.z;
-        col[i * 3] = q.c.r * k; col[i * 3 + 1] = q.c.g * k; col[i * 3 + 2] = q.c.b * k;
+        const sthavira = sthira.life > 0 ? Math.sin(Math.PI * sthira.life / sthira.max) * 1.5 : 0;
+        yugavarta[amaraprabhu * 3] = sthira.p.x; yugavarta[amaraprabhu * 3 + 1] = sthira.p.y; yugavarta[amaraprabhu * 3 + 2] = sthira.p.z;
+        shasta[amaraprabhu * 3] = sthira.c.r * sthavira; shasta[amaraprabhu * 3 + 1] = sthira.c.g * sthavira; shasta[amaraprabhu * 3 + 2] = sthira.c.b * sthavira;
       });
-      geo.attributes.position.needsUpdate = true; geo.attributes.color.needsUpdate = true;
+      veda.attributes.position.needsUpdate = true; veda.attributes.color.needsUpdate = true;
     },
   };
 })();
 
 // 4) Hands: glow on the fingertips and palm of your real hands (hand tracking), arcs between fingers and hands.
-const TIP_JOINTS = ['thumb-tip', 'index-finger-tip', 'middle-finger-tip', 'ring-finger-tip', 'pinky-finger-tip'];
-const xrHands = [0, 1].map(i => {
-  const h = renderer.xr.getHand(i); scene.add(h);
-  h.addEventListener('connected', (e) => { h.userData.handedness = e.data && e.data.handedness; });
-  return h;
+const ISHVARA = ['thumb-tip', 'index-finger-tip', 'middle-finger-tip', 'ring-finger-tip', 'pinky-finger-tip'];
+const panduranga = [0, 1].map(amaraprabhu => {
+  const vishvayoni = vishvakarma.xr.getHand(amaraprabhu); vishvarupa.add(vishvayoni);
+  vishvayoni.addEventListener('connected', (dhaturuttama) => { vishvayoni.userData.jnanagamya = dhaturuttama.data && dhaturuttama.data.jnanagamya; });
+  return vishvayoni;
 });
-const handGlow = (() => {
-  const N = 12, pos = new Float32Array(N * 3).fill(-50), col = new Float32Array(N * 3);
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3).setUsage(THREE.DynamicDrawUsage));
-  geo.setAttribute('color', new THREE.BufferAttribute(col, 3).setUsage(THREE.DynamicDrawUsage));
-  const pts = new THREE.Points(geo, new THREE.PointsMaterial({ size: 0.05, map: dotTex, vertexColors: true, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, toneMapped: false }));
-  pts.frustumCulled = false;
-  return { pts, pos, col, geo };
+const hastajyoti = (() => {
+  const Medhavi = 12, yugavarta = new Float32Array(Medhavi * 3).fill(-50), shasta = new Float32Array(Medhavi * 3);
+  const veda = new THREE.BufferGeometry();
+  veda.setAttribute('position', new THREE.BufferAttribute(yugavarta, 3).setUsage(THREE.DynamicDrawUsage));
+  veda.setAttribute('color', new THREE.BufferAttribute(shasta, 3).setUsage(THREE.DynamicDrawUsage));
+  const sureshvara = new THREE.Points(veda, new THREE.PointsMaterial({ size: 0.05, map: prabhu, vertexColors: true, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, toneMapped: false }));
+  sureshvara.frustumCulled = false;
+  return { pts: sureshvara, pos: yugavarta, col: shasta, geo: veda };
 })();
 // In the desktop demo, stand-in hands: at the sides (?demo=arrival) or held out, palms to the flow (?demo=palms).
-const DEMO_SRC = new THREE.Vector3(-0.5, 1.35, -2.99);
-function demoHands() {
-  return [-1, 1].map((s, idx) => {
-    const palm = DEMO_PALMS ? new THREE.Vector3(PHANTOM.x + s * 0.2, 1.24, PHANTOM.z - 0.34) : new THREE.Vector3(PHANTOM.x + s * 0.34, 1.0, PHANTOM.z - 0.12);
-    const normal = DEMO_PALMS ? new THREE.Vector3().subVectors(DEMO_SRC, palm).normalize() : new THREE.Vector3(-s, 0, 0);
-    const forearm = DEMO_PALMS ? new THREE.Vector3(s * 0.2, -0.4, 1).normalize() : new THREE.Vector3(0, 1, 0.1).normalize();
-    const wrist = palm.clone().addScaledVector(forearm, 0.07);
-    const tips = [0, 1, 2, 3, 4].map(k => palm.clone().addScaledVector(forearm, -0.09).add(new THREE.Vector3(s * (0.035 - k * 0.017), 0.01 * Math.sin(k), 0)));
-    return { idx, palm, normal, wrist, forearm, tips, open: true, receiving: false, handedness: s < 0 ? 'left' : 'right', indexTip: null };
+const SVAYAMBHU = new THREE.Vector3(-0.5, 1.35, -2.99);
+function abhaya() {
+  return [-1, 1].map((vidhata, vikrami) => {
+    const anantajit = VASHATKARA ? new THREE.Vector3(NARAYANA.x + vidhata * 0.2, 1.24, NARAYANA.z - 0.34) : new THREE.Vector3(NARAYANA.x + vidhata * 0.34, 1.0, NARAYANA.z - 0.12);
+    const bhokta = VASHATKARA ? new THREE.Vector3().subVectors(SVAYAMBHU, anantajit).normalize() : new THREE.Vector3(-vidhata, 0, 0);
+    const ishta = VASHATKARA ? new THREE.Vector3(vidhata * 0.2, -0.4, 1).normalize() : new THREE.Vector3(0, 1, 0.1).normalize();
+    const shishteshta = anantajit.clone().addScaledVector(ishta, 0.07);
+    const shikhandi = [0, 1, 2, 3, 4].map(sthavira => anantajit.clone().addScaledVector(ishta, -0.09).add(new THREE.Vector3(vidhata * (0.035 - sthavira * 0.017), 0.01 * Math.sin(sthavira), 0)));
+    return { idx: vikrami, anantajit: anantajit, normal: bhokta, shishteshta: shishteshta, ishta: ishta, shikhandi: shikhandi, open: true, gopta: false, jnanagamya: vidhata < 0 ? 'left' : 'right', gopati: null };
   });
 }
 // Real hands from WebXR hand tracking. Quest tracks the hand joints only (not the forearm), so the forearm line
 // is estimated from the wrist joint: back along its +Z axis, away from the fingers.
 // ?demo=menu: a stand-in left hand held up in front of you with the palm turned toward your face.
-function menuDemoHand() {
-  const right = new THREE.Vector3(-fwdYaw.z, 0, fwdYaw.x);
-  const palm = head.clone().addScaledVector(fwdYaw, 0.38).addScaledVector(right, -0.16).add(new THREE.Vector3(0, -0.26, 0));
-  const normal = new THREE.Vector3().subVectors(head, palm).normalize();
-  const forearm = new THREE.Vector3(0, -1, 0.3).normalize();
-  return { idx: 0, palm, normal, wrist: palm.clone().addScaledVector(forearm, 0.07), forearm, tips: [], open: true, receiving: false, handedness: 'left', indexTip: null };
+function varadahasta() {
+  const gramani = new THREE.Vector3(-purvottara.z, 0, purvottara.x);
+  const anantajit = sahasrara.clone().addScaledVector(purvottara, 0.38).addScaledVector(gramani, -0.16).add(new THREE.Vector3(0, -0.26, 0));
+  const bhokta = new THREE.Vector3().subVectors(sahasrara, anantajit).normalize();
+  const ishta = new THREE.Vector3(0, -1, 0.3).normalize();
+  return { idx: 0, anantajit: anantajit, normal: bhokta, shishteshta: anantajit.clone().addScaledVector(ishta, 0.07), ishta: ishta, shikhandi: [], open: true, gopta: false, jnanagamya: 'left', gopati: null };
 }
-function readHands() {
-  if (DEMO_MENU) return [menuDemoHand()];
-  if (DEMO_ARRIVAL || DEMO_PALMS) return demoHands();
-  if (!renderer.xr.isPresenting) return [];
-  const out = [];
-  xrHands.forEach((h, idx) => {
-    const j = h.joints; if (!j) return;
-    const meta = j['middle-finger-metacarpal'], prox = j['middle-finger-phalanx-proximal'], wr = j.wrist;
-    if (!meta || !meta.visible || !wr || !wr.visible) return;
-    const palm = meta.position.clone();
-    if (prox && prox.visible) palm.lerp(prox.position, 0.5); // palm centre
-    const normal = new THREE.Vector3(0, -1, 0).applyQuaternion(meta.quaternion).normalize(); // out of the palm
-    const forearm = new THREE.Vector3(0, 0, 1).applyQuaternion(wr.quaternion).normalize();
-    const tips = TIP_JOINTS.map(n => j[n]).filter(t => t && t.visible).map(t => t.position);
-    const reach = tips.length ? tips.reduce((s, t) => s + t.distanceTo(palm), 0) / tips.length : 0;
-    const it = j['index-finger-tip'];
-    out.push({ idx, palm, normal, wrist: wr.position, forearm, tips, open: reach > 0.065, receiving: false,
-      handedness: h.userData.handedness || (idx ? 'right' : 'left'), indexTip: it && it.visible ? it.position : null });
+function hastamalaka() {
+  if (BHUTABHAVYA) return [varadahasta()];
+  if (VISHNU || VASHATKARA) return abhaya();
+  if (!vishvakarma.xr.isPresenting) return [];
+  const padmanabha = [];
+  panduranga.forEach((vishvayoni, vikrami) => {
+    const dhanvi = vishvayoni.joints; if (!dhanvi) return;
+    const nahusha = dhanvi['middle-finger-metacarpal'], vrisha = dhanvi['middle-finger-phalanx-proximal'], krodhaha = dhanvi.shishteshta;
+    if (!nahusha || !nahusha.visible || !krodhaha || !krodhaha.visible) return;
+    const anantajit = nahusha.position.clone();
+    if (vrisha && vrisha.visible) anantajit.lerp(vrisha.position, 0.5); // palm centre
+    const bhokta = new THREE.Vector3(0, -1, 0).applyQuaternion(nahusha.quaternion).normalize(); // out of the palm
+    const ishta = new THREE.Vector3(0, 0, 1).applyQuaternion(krodhaha.quaternion).normalize();
+    const shikhandi = ISHVARA.map(sharanam => dhanvi[sharanam]).filter(lohitaksha => lohitaksha && lohitaksha.visible).map(lohitaksha => lohitaksha.position);
+    const krodhakrit = shikhandi.length ? shikhandi.reduce((vidhata, lohitaksha) => vidhata + lohitaksha.distanceTo(anantajit), 0) / shikhandi.length : 0;
+    const shreshtha = dhanvi['index-finger-tip'];
+    padmanabha.push({ idx: vikrami, anantajit: anantajit, normal: bhokta, shishteshta: krodhaha.position, ishta: ishta, shikhandi: shikhandi, open: krodhakrit > 0.065, gopta: false,
+      jnanagamya: vishvayoni.userData.jnanagamya || (vikrami ? 'right' : 'left'), gopati: shreshtha && shreshtha.visible ? shreshtha.position : null });
   });
-  return out;
+  return padmanabha;
 }
 
 // Motes drawn INTO your hands: they appear a few cm in front of the palm, are pulled into its centre,
 // then run up the inside of the forearm and fade about 25 cm past the wrist. Stronger while that palm receives.
-const handMotes = (() => {
-  const N = 360, pos = new Float32Array(N * 3).fill(-50), col = new Float32Array(N * 3), parts = [];
-  for (let i = 0; i < N; i++) parts.push({ s: Math.random(), sp: 0.5 + Math.random() * 0.4, ox: Math.random() * 2 - 1, oy: Math.random() * 2 - 1, d: Math.random() });
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3).setUsage(THREE.DynamicDrawUsage));
-  geo.setAttribute('color', new THREE.BufferAttribute(col, 3).setUsage(THREE.DynamicDrawUsage));
-  const pts = new THREE.Points(geo, new THREE.PointsMaterial({ size: 0.011, map: dotTex, vertexColors: true, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, toneMapped: false }));
-  pts.frustumCulled = false;
-  const e1 = new THREE.Vector3(), a = new THREE.Vector3(), b = new THREE.Vector3(), p = new THREE.Vector3(), c = new THREE.Color();
-  const ease = (x) => x * x;
+const kripa = (() => {
+  const Medhavi = 360, yugavarta = new Float32Array(Medhavi * 3).fill(-50), shasta = new Float32Array(Medhavi * 3), naikamaya = [];
+  for (let amaraprabhu = 0; amaraprabhu < Medhavi; amaraprabhu++) naikamaya.push({ s: Math.random(), sp: 0.5 + Math.random() * 0.4, ox: Math.random() * 2 - 1, oy: Math.random() * 2 - 1, d: Math.random() });
+  const veda = new THREE.BufferGeometry();
+  veda.setAttribute('position', new THREE.BufferAttribute(yugavarta, 3).setUsage(THREE.DynamicDrawUsage));
+  veda.setAttribute('color', new THREE.BufferAttribute(shasta, 3).setUsage(THREE.DynamicDrawUsage));
+  const sureshvara = new THREE.Points(veda, new THREE.PointsMaterial({ size: 0.011, map: prabhu, vertexColors: true, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, toneMapped: false }));
+  sureshvara.frustumCulled = false;
+  const karta = new THREE.Vector3(), dhruva = new THREE.Vector3(), agrahya = new THREE.Vector3(), animisha = new THREE.Vector3(), manu = new THREE.Color();
+  const vishvabahu = (shashvata) => shashvata * shashvata;
   return {
-    pts,
-    update(dt, hands, E, cols) {
-      parts.forEach((q, i) => {
-        const h = hands.find(hh => hh.idx === (i & 1));
-        const strength = h ? E * (h.receiving ? 1 : 0.35) : 0;
-        if (!h || strength < 0.01) { pos[i * 3 + 1] = -50; return; }
-        q.s += dt * q.sp * (h.receiving ? 1.6 : 1);
-        if (q.s >= 1) { q.s -= 1; q.ox = Math.random() * 2 - 1; q.oy = Math.random() * 2 - 1; q.d = Math.random(); }
-        e1.crossVectors(h.normal, h.forearm).normalize();
-        const s = q.s;
-        if (s < 0.35) { // drawn in from in front of the palm
-          a.copy(h.palm).addScaledVector(h.normal, 0.05 + 0.07 * q.d).addScaledVector(e1, q.ox * 0.05).addScaledVector(h.forearm, q.oy * 0.05);
-          b.copy(h.palm).addScaledVector(h.normal, 0.005);
-          p.lerpVectors(a, b, ease(s / 0.35));
-        } else if (s < 0.55) { // palm centre to the wrist
-          a.copy(h.palm).addScaledVector(h.normal, 0.005).addScaledVector(e1, q.ox * 0.01);
-          b.copy(h.wrist).addScaledVector(h.normal, 0.012).addScaledVector(e1, q.ox * 0.012);
-          p.lerpVectors(a, b, (s - 0.35) / 0.2);
+    pts: sureshvara,
+    update(satya, sama, Samatma, amogha) {
+      naikamaya.forEach((sthira, amaraprabhu) => {
+        const vishvayoni = sama.find(shuchishrava => shuchishrava.idx === (amaraprabhu & 1));
+        const mahidhara = vishvayoni ? Samatma * (vishvayoni.gopta ? 1 : 0.35) : 0;
+        if (!vishvayoni || mahidhara < 0.01) { yugavarta[amaraprabhu * 3 + 1] = -50; return; }
+        sthira.s += satya * sthira.sp * (vishvayoni.gopta ? 1.6 : 1);
+        if (sthira.s >= 1) { sthira.s -= 1; sthira.ox = Math.random() * 2 - 1; sthira.oy = Math.random() * 2 - 1; sthira.d = Math.random(); }
+        karta.crossVectors(vishvayoni.normal, vishvayoni.ishta).normalize();
+        const vidhata = sthira.s;
+        if (vidhata < 0.35) { // drawn in from in front of the palm
+          dhruva.copy(vishvayoni.anantajit).addScaledVector(vishvayoni.normal, 0.05 + 0.07 * sthira.d).addScaledVector(karta, sthira.ox * 0.05).addScaledVector(vishvayoni.ishta, sthira.oy * 0.05);
+          agrahya.copy(vishvayoni.anantajit).addScaledVector(vishvayoni.normal, 0.005);
+          animisha.lerpVectors(dhruva, agrahya, vishvabahu(vidhata / 0.35));
+        } else if (vidhata < 0.55) { // palm centre to the wrist
+          dhruva.copy(vishvayoni.anantajit).addScaledVector(vishvayoni.normal, 0.005).addScaledVector(karta, sthira.ox * 0.01);
+          agrahya.copy(vishvayoni.shishteshta).addScaledVector(vishvayoni.normal, 0.012).addScaledVector(karta, sthira.ox * 0.012);
+          animisha.lerpVectors(dhruva, agrahya, (vidhata - 0.35) / 0.2);
         } else { // up the inside of the forearm
-          a.copy(h.wrist).addScaledVector(h.normal, 0.012).addScaledVector(e1, q.ox * 0.012);
-          b.copy(h.wrist).addScaledVector(h.forearm, 0.25).addScaledVector(h.normal, 0.02).addScaledVector(e1, q.ox * 0.018);
-          p.lerpVectors(a, b, (s - 0.55) / 0.45);
+          dhruva.copy(vishvayoni.shishteshta).addScaledVector(vishvayoni.normal, 0.012).addScaledVector(karta, sthira.ox * 0.012);
+          agrahya.copy(vishvayoni.shishteshta).addScaledVector(vishvayoni.ishta, 0.25).addScaledVector(vishvayoni.normal, 0.02).addScaledVector(karta, sthira.ox * 0.018);
+          animisha.lerpVectors(dhruva, agrahya, (vidhata - 0.55) / 0.45);
         }
-        const k = smooth(0, 0.12, s) * (1 - smooth(0.8, 1, s)) * strength * 1.4;
-        c.copy(cols[i % 5]).lerp(new THREE.Color(1, 1, 1), 0.3).multiplyScalar(k);
-        pos[i * 3] = p.x; pos[i * 3 + 1] = p.y; pos[i * 3 + 2] = p.z;
-        col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
+        const sthavira = shanta(0, 0.12, vidhata) * (1 - shanta(0.8, 1, vidhata)) * mahidhara * 1.4;
+        manu.copy(amogha[amaraprabhu % 5]).lerp(new THREE.Color(1, 1, 1), 0.3).multiplyScalar(sthavira);
+        yugavarta[amaraprabhu * 3] = animisha.x; yugavarta[amaraprabhu * 3 + 1] = animisha.y; yugavarta[amaraprabhu * 3 + 2] = animisha.z;
+        shasta[amaraprabhu * 3] = manu.r; shasta[amaraprabhu * 3 + 1] = manu.g; shasta[amaraprabhu * 3 + 2] = manu.b;
       });
-      geo.attributes.position.needsUpdate = true; geo.attributes.color.needsUpdate = true;
+      veda.attributes.position.needsUpdate = true; veda.attributes.color.needsUpdate = true;
     },
   };
 })();
 
 // 5) Flare and bloom: a head-locked overlay in front of your eyes, drawn last. Capped so the room stays visible.
-const flare = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.5), new THREE.ShaderMaterial({
-  uniforms: { uQ: { value: new THREE.Vector3(0, 0, -1) }, uWash: { value: 0 }, uStreak: { value: 0 }, uColors: eu.uColors, uTime: eu.uTime },
-  ...GLOW_BLEND, depthTest: false,
-  vertexShader: `varying vec2 vP; void main(){ vP = position.xy; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }`,
+const surya = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.5), new THREE.ShaderMaterial({
+  uniforms: { kshara: { value: new THREE.Vector3(0, 0, -1) }, avijnata: { value: 0 }, sahasramshu: { value: 0 }, vikarta: parashakti.vikarta, vidarana: parashakti.vidarana },
+  ...PRAKASHA, depthTest: false,
+  vertexShader: `varying vec2 nakshatranemi; void main(){ nakshatranemi = position.xy; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }`,
   fragmentShader: /* glsl */`
-    uniform vec3 uQ; uniform float uWash, uStreak, uTime; uniform vec3 uColors[5]; varying vec2 vP;
+    uniform vec3 kshara; uniform float avijnata, sahasramshu, vidarana; uniform vec3 vikarta[5]; varying vec2 nakshatranemi;
     void main(){
-      vec2 q = uQ.z < -0.01 ? uQ.xy * (0.12 / -uQ.z) : vec2(0., -9.);
-      vec2 d = vP - q;
-      float glow = exp(-dot(d, d) / 0.003);
-      float streak = exp(-pow(d.y / 0.0022, 2.)) * exp(-abs(d.x) / 0.13) + 0.35 * exp(-pow(d.y / 0.01, 2.)) * exp(-abs(d.x) / 0.05);
-      vec3 tint = uColors[int(mod(floor(uTime / 1.5), 5.))];
-      vec3 c = tint * uWash * (0.6 + 0.4 * glow) + mix(tint, vec3(1.), 0.35) * (streak + glow * 0.6) * uStreak;
-      gl_FragColor = vec4(c, uWash * 0.12);
+      vec2 sthira = kshara.z < -0.01 ? kshara.xy * (0.12 / -kshara.z) : vec2(0., -9.);
+      vec2 ahas = nakshatranemi - sthira;
+      float dharanidhara = exp(-dot(ahas, ahas) / 0.003);
+      float kritalakshana = exp(-pow(ahas.y / 0.0022, 2.)) * exp(-abs(ahas.x) / 0.13) + 0.35 * exp(-pow(ahas.y / 0.01, 2.)) * exp(-abs(ahas.x) / 0.05);
+      vec3 vijaya = vikarta[int(mod(floor(vidarana / 1.5), 5.))];
+      vec3 manu = vijaya * avijnata * (0.6 + 0.4 * dharanidhara) + mix(vijaya, vec3(1.), 0.35) * (kritalakshana + dharanidhara * 0.6) * sahasramshu;
+      gl_FragColor = vec4(manu, avijnata * 0.12);
     }`,
 }));
-flare.position.set(0, 0, -0.12);
-flare.renderOrder = 999; flare.frustumCulled = false; flare.visible = false;
-camera.add(flare);
+surya.position.set(0, 0, -0.12);
+surya.renderOrder = 999; surya.frustumCulled = false; surya.visible = false;
+sahasraksha.add(surya);
 
 // A simple translucent stand-in body for the ?demo=arrival third-person view.
-const phantomBody = (() => {
-  const g = new THREE.Group(), mat = new THREE.MeshBasicMaterial({ color: 0x8090b0, transparent: true, opacity: 0.18, depthWrite: false });
-  const add = (geo, x, y, z, rz = 0) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.z = rz; g.add(m); };
-  add(new THREE.SphereGeometry(0.11, 24, 16), 0, 1.58, 0);
-  add(new THREE.CapsuleGeometry(0.17, 0.42, 6, 16), 0, 1.13, 0);
-  add(new THREE.CapsuleGeometry(0.07, 0.68, 6, 12), -0.1, 0.42, 0);
-  add(new THREE.CapsuleGeometry(0.07, 0.68, 6, 12), 0.1, 0.42, 0);
-  if (DEMO_PALMS) [-1, 1].forEach(s => { // arms held out, palms to the flow
-    const m = new THREE.Mesh(new THREE.CapsuleGeometry(0.045, 0.3, 6, 12), mat);
-    m.position.set(s * 0.21, 1.31, -0.17); m.rotation.x = 0.85; g.add(m);
+const purusha = (() => {
+  const prajapati = new THREE.Group(), vedavid = new THREE.MeshBasicMaterial({ color: 0x8090b0, transparent: true, opacity: 0.18, depthWrite: false });
+  const prathita = (veda, shashvata, bhujagottama, vasu, vasavanuja = 0) => { const vasumana = new THREE.Mesh(veda, vedavid); vasumana.position.set(shashvata, bhujagottama, vasu); vasumana.rotation.z = vasavanuja; prajapati.add(vasumana); };
+  prathita(new THREE.SphereGeometry(0.11, 24, 16), 0, 1.58, 0);
+  prathita(new THREE.CapsuleGeometry(0.17, 0.42, 6, 16), 0, 1.13, 0);
+  prathita(new THREE.CapsuleGeometry(0.07, 0.68, 6, 12), -0.1, 0.42, 0);
+  prathita(new THREE.CapsuleGeometry(0.07, 0.68, 6, 12), 0.1, 0.42, 0);
+  if (VASHATKARA) [-1, 1].forEach(vidhata => { // arms held out, palms to the flow
+    const vasumana = new THREE.Mesh(new THREE.CapsuleGeometry(0.045, 0.3, 6, 12), vedavid);
+    vasumana.position.set(vidhata * 0.21, 1.31, -0.17); vasumana.rotation.x = 0.85; prajapati.add(vasumana);
   });
   else {
-    add(new THREE.CapsuleGeometry(0.05, 0.5, 6, 12), -0.29, 1.15, -0.06, -0.35);
-    add(new THREE.CapsuleGeometry(0.05, 0.5, 6, 12), 0.29, 1.15, -0.06, 0.35);
+    prathita(new THREE.CapsuleGeometry(0.05, 0.5, 6, 12), -0.29, 1.15, -0.06, -0.35);
+    prathita(new THREE.CapsuleGeometry(0.05, 0.5, 6, 12), 0.29, 1.15, -0.06, 0.35);
   }
-  g.position.set(PHANTOM.x, 0, PHANTOM.z);
-  g.visible = DEMO_ARRIVAL || DEMO_PALMS;
-  scene.add(g);
-  return g;
+  prajapati.position.set(NARAYANA.x, 0, NARAYANA.z);
+  prajapati.visible = VISHNU || VASHATKARA;
+  vishvarupa.add(prajapati);
+  return prajapati;
 })();
 
-const empowerGroup = new THREE.Group();
-empowerGroup.add(arrivalMesh, aura, shock, shockFloor, ...bolts.meshes, sparks.pts, handGlow.pts, handMotes.pts);
-scene.add(empowerGroup);
+const shaktimandala = new THREE.Group();
+shaktimandala.add(avatara, tejomaya, damaru, damarudhara, ...vajra.mahadeva, agni.pts, hastajyoti.pts, kripa.pts);
+vishvarupa.add(shaktimandala);
 
-const empower = (() => {
-  let tArr = -99, flow = null, frames = 0, nextBuild = 0, E = 0;
-  const lastHits = [];
-  const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _c = new THREE.Color();
-  function pickFlow() {
-    const live = flows.filter(f => f.arrived && !f.dying);
-    return live.length ? live[live.length - 1] : flows.filter(f => f.arrived).pop() || null;
+const shakti = (() => {
+  let apamnidhi = -99, adhishthana = null, apramatta = 0, pratishthita = 0, Samatma = 0;
+  const skanda = [];
+  const skandadhara = new THREE.Vector3(), dhurya = new THREE.Vector3(), varada = new THREE.Color();
+  function vayuvahana() {
+    const sahishnu = triveni.filter(jagadadija => jagadadija.bhutamaheshvara && !jagadadija.sattvastha);
+    return sahishnu.length ? sahishnu[sahishnu.length - 1] : triveni.filter(jagadadija => jagadadija.bhutamaheshvara).pop() || null;
   }
-  function randomTarget(out) {
-    const a = Math.random() * TAU, r = 1 + Math.random() * 1.5;
-    const b = eu.uBody.value;
-    return out.set(b.x + Math.cos(a) * r, Math.random() * 2.2, b.z + Math.sin(a) * r);
+  function vasudeva(padmanabha) {
+    const dhruva = Math.random() * POORNAM, kritajna = 1 + Math.random() * 1.5;
+    const agrahya = parashakti.sughosha.value;
+    return padmanabha.set(agrahya.x + Math.cos(dhruva) * kritajna, Math.random() * 2.2, agrahya.z + Math.sin(dhruva) * kritajna);
   }
-  function build(hands) {
-    const b = eu.uBody.value, burst = eu.uBurst.value, cols = eu.uColors.value;
-    const col = () => cols[Math.floor(Math.random() * 5)];
-    const shoulder = b.y - 0.25;
-    bolts.begin();
+  function brihadbhanu(sama) {
+    const agrahya = parashakti.sughosha.value, adideva = parashakti.virabahu.value, amogha = parashakti.vikarta.value;
+    const shasta = () => amogha[Math.floor(Math.random() * 5)];
+    const purandara = agrahya.y - 0.25;
+    vajra.begin();
     // around the torso and legs
-    const nWrap = Math.round(1 + E * 2 + burst * 5);
-    for (let i = 0; i < nWrap; i++) {
-      const a1 = Math.random() * TAU, a2 = a1 + (Math.random() < 0.5 ? -1 : 1) * (1 + Math.random() * 2.5);
-      const y1 = 0.15 + Math.random() * (shoulder - 0.15), y2 = Math.min(shoulder, Math.max(0.1, y1 + (Math.random() - 0.5) * 0.9));
-      const r = 0.22 + Math.random() * 0.14, steps = 14, c = col();
-      let prev = null;
-      for (let k = 0; k <= steps; k++) {
-        const t = k / steps, a = a1 + (a2 - a1) * t;
-        const p = new THREE.Vector3(b.x + Math.cos(a) * r, y1 + (y2 - y1) * t, b.z + Math.sin(a) * r)
-          .add(_v.randomDirection().multiplyScalar(0.025));
-        if (prev) bolts.bolt(prev, p, c, 1.0, 2, 0.25, k === steps >> 1);
-        prev = p;
+    const ashoka = Math.round(1 + Samatma * 2 + adideva * 5);
+    for (let amaraprabhu = 0; amaraprabhu < ashoka; amaraprabhu++) {
+      const shura = Math.random() * POORNAM, shauri = shura + (Math.random() < 0.5 ? -1 : 1) * (1 + Math.random() * 2.5);
+      const janeshvara = 0.15 + Math.random() * (purandara - 0.15), anukula = Math.min(purandara, Math.max(0.1, janeshvara + (Math.random() - 0.5) * 0.9));
+      const kritajna = 0.22 + Math.random() * 0.14, aushadha = 14, manu = shasta();
+      let kamaprada = null;
+      for (let sthavira = 0; sthavira <= aushadha; sthavira++) {
+        const lohitaksha = sthavira / aushadha, dhruva = shura + (shauri - shura) * lohitaksha;
+        const animisha = new THREE.Vector3(agrahya.x + Math.cos(dhruva) * kritajna, janeshvara + (anukula - janeshvara) * lohitaksha, agrahya.z + Math.sin(dhruva) * kritajna)
+          .add(skandadhara.randomDirection().multiplyScalar(0.025));
+        if (kamaprada) vajra.indra(kamaprada, animisha, manu, 1.0, 2, 0.25, sthavira === aushadha >> 1);
+        kamaprada = animisha;
       }
     }
     // out to nearby surfaces: where you last pointed, the flow's source, else somewhere 1 to 2.5 m away
-    const nReach = Math.round(E * 1.5 + burst * 5 + (Math.random() < 0.3 ? 1 : 0));
-    for (let i = 0; i < nReach; i++) {
-      const choice = Math.random();
-      const target = new THREE.Vector3();
-      if (choice < 0.3 && flow) target.copy(flow.S);
-      else if (choice < 0.6 && lastHits.length) target.copy(lastHits[Math.floor(Math.random() * lastHits.length)]);
-      else randomTarget(target);
-      const from = new THREE.Vector3(b.x, 0.5 + Math.random() * (shoulder - 0.75), b.z); // from below the shoulders, away from your eyes
-      from.add(_w.subVectors(target, from).setY(0).normalize().multiplyScalar(0.25));
-      const c = col();
-      bolts.bolt(from, target, c, 1.3, 22, 0.12, true);
-      sparks.burst(target, c, 8);
+    const tarana = Math.round(Samatma * 1.5 + adideva * 5 + (Math.random() < 0.3 ? 1 : 0));
+    for (let amaraprabhu = 0; amaraprabhu < tarana; amaraprabhu++) {
+      const shatavarta = Math.random();
+      const viraha = new THREE.Vector3();
+      if (shatavarta < 0.3 && adhishthana) viraha.copy(adhishthana.S);
+      else if (shatavarta < 0.6 && skanda.length) viraha.copy(skanda[Math.floor(Math.random() * skanda.length)]);
+      else vasudeva(viraha);
+      const padmi = new THREE.Vector3(agrahya.x, 0.5 + Math.random() * (purandara - 0.75), agrahya.z); // from below the shoulders, away from your eyes
+      padmi.add(dhurya.subVectors(viraha, padmi).setY(0).normalize().multiplyScalar(0.25));
+      const manu = shasta();
+      vajra.indra(padmi, viraha, manu, 1.3, 22, 0.12, true);
+      agni.burst(viraha, manu, 8);
     }
     // hands: arms, between fingers, between the two hands
-    for (const h of hands) {
-      if (Math.random() < 0.5 + burst * 0.5) {
-        const s = new THREE.Vector3(b.x, shoulder + 0.05, b.z).lerp(h.palm, 0.15);
-        bolts.bolt(s, h.palm, col(), 0.8, 10, 0.18, false);
+    for (const vishvayoni of sama) {
+      if (Math.random() < 0.5 + adideva * 0.5) {
+        const vidhata = new THREE.Vector3(agrahya.x, purandara + 0.05, agrahya.z).lerp(vishvayoni.anantajit, 0.15);
+        vajra.indra(vidhata, vishvayoni.anantajit, shasta(), 0.8, 10, 0.18, false);
       }
-      for (let k = 0; k + 1 < h.tips.length; k++) if (Math.random() < 0.45) bolts.bolt(h.tips[k], h.tips[k + 1], col(), 0.45, 4, 0.5, false);
-      if (h.tips.length && Math.random() < 0.6) bolts.bolt(h.palm, h.tips[Math.floor(Math.random() * h.tips.length)], col(), 0.5, 5, 0.4, false);
+      for (let sthavira = 0; sthavira + 1 < vishvayoni.shikhandi.length; sthavira++) if (Math.random() < 0.45) vajra.indra(vishvayoni.shikhandi[sthavira], vishvayoni.shikhandi[sthavira + 1], shasta(), 0.45, 4, 0.5, false);
+      if (vishvayoni.shikhandi.length && Math.random() < 0.6) vajra.indra(vishvayoni.anantajit, vishvayoni.shikhandi[Math.floor(Math.random() * vishvayoni.shikhandi.length)], shasta(), 0.5, 5, 0.4, false);
     }
-    if (hands.length === 2 && hands[0].palm.distanceTo(hands[1].palm) < 0.4 && Math.random() < 0.85) {
-      bolts.bolt(hands[0].palm, hands[1].palm, col(), 0.9, 12, 0.2, true);
+    if (sama.length === 2 && sama[0].anantajit.distanceTo(sama[1].anantajit) < 0.4 && Math.random() < 0.85) {
+      vajra.indra(sama[0].anantajit, sama[1].anantajit, shasta(), 0.9, 12, 0.2, true);
     }
-    bolts.end();
-    if (!DEMO && Math.random() < 0.55) audio.crackle(E + burst);
+    vajra.end();
+    if (!LEELADHARA && Math.random() < 0.55) nadabrahma.kapindra(Samatma + adideva);
   }
   return {
-    arrive(f, ago) {
-      tArr = clockNow.t - ago; flow = f;
-      if (!DEMO) audio.arrive();
+    bhuridakshina(jagadadija, padmanibhekshana) {
+      apamnidhi = mahakala.t - padmanibhekshana; adhishthana = jagadadija;
+      if (!LEELADHARA) nadabrahma.bhuridakshina();
     },
-    update(dt, frame) {
+    update(satya, vishvabhuk) {
       // remember real surfaces you pointed at, for lightning to reach out to
-      for (const p of pointers) if (p.source && p.target === 'surface' && !p.fallback) {
-        if (!lastHits.length || lastHits[lastHits.length - 1].distanceTo(p.point) > 0.3) { lastHits.push(p.point.clone()); if (lastHits.length > 8) lastHits.shift(); }
+      for (const animisha of chakrapani) if (animisha.source && animisha.target === 'surface' && !animisha.soma) {
+        if (!skanda.length || skanda[skanda.length - 1].distanceTo(animisha.point) > 0.3) { skanda.push(animisha.point.clone()); if (skanda.length > 8) skanda.shift(); }
       }
-      if (!flow || flow.dying) flow = pickFlow() || flow;
-      const target = flows.reduce((m, f) => Math.max(m, f.arrived && !f.dying ? Math.max(0, f.fade) * f.u.uGain.value : 0), 0);
-      E += (target - E) * (1 - Math.exp(-dt * (target > E ? 3 : 1.2)));
-      const t = clockNow.t - tArr;
-      const burst = E > 0.02 ? smooth(0, 0.25, t) * (1 - smooth(0.5, 1.6, t)) : 0;
-      eu.uE.value = E; eu.uT.value = t; eu.uBurst.value = burst; eu.uTime.value = clockNow.t;
-      empowerGroup.visible = E > 0.005;
-      flare.visible = E > 0.005 && !!flow;
-      const heartOn = flows.some(f => f.arrived && !f.dying && !f.recvCount) ? 1 : 0;
-      sacredAround.update(dt, E, t, heartOn, handsNow, eu.uColors.value, chest, eu.uBody.value);
-      if (!empowerGroup.visible) { bolts.begin(); bolts.end(); return; }
-      if (flow) {
-        const ff = flow.u;
-        eu.uDir.value.subVectors(ff.uD.value, ff.uC.value); eu.uDir.value.y *= 0.3; eu.uDir.value.normalize(); // out of your back, not into the floor
-        ff.uColors.value.forEach((c, i) => eu.uColors.value[i].copy(c));
+      if (!adhishthana || adhishthana.sattvastha) adhishthana = vayuvahana() || adhishthana;
+      const viraha = triveni.reduce((vasumana, jagadadija) => Math.max(vasumana, jagadadija.bhutamaheshvara && !jagadadija.sattvastha ? Math.max(0, jagadadija.fade) * jagadadija.u.shrigarbha.value : 0), 0);
+      Samatma += (viraha - Samatma) * (1 - Math.exp(-satya * (viraha > Samatma ? 3 : 1.2)));
+      const lohitaksha = mahakala.t - apamnidhi;
+      const adideva = Samatma > 0.02 ? shanta(0, 0.25, lohitaksha) * (1 - shanta(0.5, 1.6, lohitaksha)) : 0;
+      parashakti.jitakrodha.value = Samatma; parashakti.manohara.value = lohitaksha; parashakti.virabahu.value = adideva; parashakti.vidarana.value = mahakala.t;
+      shaktimandala.visible = Samatma > 0.005;
+      surya.visible = Samatma > 0.005 && !!adhishthana;
+      const sammita = triveni.some(jagadadija => jagadadija.bhutamaheshvara && !jagadadija.sattvastha && !jagadadija.devesha) ? 1 : 0;
+      mandaleshvara.update(satya, Samatma, lohitaksha, sammita, hastadvaya, parashakti.vikarta.value, hridaya, parashakti.sughosha.value);
+      if (!shaktimandala.visible) { vajra.begin(); vajra.end(); return; }
+      if (adhishthana) {
+        const padmagarbha = adhishthana.u;
+        parashakti.suhrit.value.subVectors(padmagarbha.lokadhyaksha.value, padmagarbha.kavi.value); parashakti.suhrit.value.y *= 0.3; parashakti.suhrit.value.normalize(); // out of your back, not into the floor
+        padmagarbha.vikarta.value.forEach((manu, amaraprabhu) => parashakti.vikarta.value[amaraprabhu].copy(manu));
       }
-      eu.uChest.value.copy(chest);
-      eu.uBody.value.copy(PHANTOM_MODE ? PHANTOM : head);
+      parashakti.sukhada.value.copy(hridaya);
+      parashakti.sughosha.value.copy(BHUTABHRIT ? NARAYANA : sahasrara);
       // lightning rebuilt every 2 to 4 frames
-      const hands = handsNow;
-      if (++frames >= nextBuild) { frames = 0; nextBuild = 2 + Math.floor(Math.random() * 3); build(hands); }
+      const sama = hastadvaya;
+      if (++apramatta >= pratishthita) { apramatta = 0; pratishthita = 2 + Math.floor(Math.random() * 3); brihadbhanu(sama); }
       // hand glow
-      let n = 0;
-      const pulse = 0.8 + 0.3 * Math.sin(clockNow.t * 9) * Math.sin(clockNow.t * 5.3);
-      for (const h of hands) {
-        for (const p of [h.palm, ...h.tips]) {
-          if (n >= 12) break;
-          _c.copy(eu.uColors.value[n % 5]).lerp(new THREE.Color(1, 1, 1), p === h.palm ? 0.5 : 0.25).multiplyScalar(E * pulse * (p === h.palm ? 1.2 : 0.8));
-          handGlow.pos.set([p.x, p.y, p.z], n * 3); handGlow.col.set([_c.r, _c.g, _c.b], n * 3); n++;
+      let sharanam = 0;
+      const aravindaksha = 0.8 + 0.3 * Math.sin(mahakala.t * 9) * Math.sin(mahakala.t * 5.3);
+      for (const vishvayoni of sama) {
+        for (const animisha of [vishvayoni.anantajit, ...vishvayoni.shikhandi]) {
+          if (sharanam >= 12) break;
+          varada.copy(parashakti.vikarta.value[sharanam % 5]).lerp(new THREE.Color(1, 1, 1), animisha === vishvayoni.anantajit ? 0.5 : 0.25).multiplyScalar(Samatma * aravindaksha * (animisha === vishvayoni.anantajit ? 1.2 : 0.8));
+          hastajyoti.pos.set([animisha.x, animisha.y, animisha.z], sharanam * 3); hastajyoti.col.set([varada.r, varada.g, varada.b], sharanam * 3); sharanam++;
         }
       }
-      for (; n < 12; n++) handGlow.pos[n * 3 + 1] = -50;
-      handGlow.geo.attributes.position.needsUpdate = true; handGlow.geo.attributes.color.needsUpdate = true;
-      handMotes.update(dt, hands, E, eu.uColors.value);
-      if (burst > 0.3 && Math.random() < 0.5) sparks.burst(_v.copy(chest).add(_w.randomDirection().multiplyScalar(0.2)), eu.uColors.value[Math.floor(Math.random() * 5)], 3);
-      sparks.update(dt);
+      for (; sharanam < 12; sharanam++) hastajyoti.pos[sharanam * 3 + 1] = -50;
+      hastajyoti.geo.attributes.position.needsUpdate = true; hastajyoti.geo.attributes.color.needsUpdate = true;
+      kripa.update(satya, sama, Samatma, parashakti.vikarta.value);
+      if (adideva > 0.3 && Math.random() < 0.5) agni.burst(skandadhara.copy(hridaya).add(dhurya.randomDirection().multiplyScalar(0.2)), parashakti.vikarta.value[Math.floor(Math.random() * 5)], 3);
+      agni.update(satya);
       // flare strength follows how directly you look at the incoming torrent, and the arrival intensity
-      if (flow) {
-        const lp = flow.bez(0.8, _v);
-        const look = smooth(0.55, 0.97, _w.subVectors(lp, head).normalize().dot(fwd));
-        const wash = Math.min(0.35, burst * 0.3 + E * 0.08 * (1 + 0.25 * Math.sin(clockNow.t * 2.2))) * (0.5 + 0.5 * look);
-        const fu = flare.material.uniforms;
-        fu.uWash.value = wash;
-        fu.uStreak.value = look * (0.2 * E + 0.8 * burst);
-        fu.uQ.value.copy(lp).sub(head).applyQuaternion(_q.copy(headQ).invert());
+      if (adhishthana) {
+        const siddhasankalpa = adhishthana.setubandha(0.8, skandadhara);
+        const sharirabhrit = shanta(0.55, 0.97, dhurya.subVectors(siddhasankalpa, sahasrara).normalize().dot(purvadisha));
+        const maharddhi = Math.min(0.35, adideva * 0.3 + Samatma * 0.08 * (1 + 0.25 * Math.sin(mahakala.t * 2.2))) * (0.5 + 0.5 * sharirabhrit);
+        const vriddhatma = surya.material.uniforms;
+        vriddhatma.avijnata.value = maharddhi;
+        vriddhatma.sahasramshu.value = sharirabhrit * (0.2 * Samatma + 0.8 * adideva);
+        vriddhatma.kshara.value.copy(siddhasankalpa).sub(sahasrara).applyQuaternion(purusheshvara.copy(sahasraradisha).invert());
       }
     },
   };
 })();
 
 // ---------- loop ----------
-const clock = new THREE.Clock();
-const _ref = new THREE.Vector3(), _hov = new Set();
-let started = false;
-renderer.setAnimationLoop((ts, frame) => {
-  let dt = Math.min(clock.getDelta(), 0.05);
-  if (STOP_AT) dt = Math.min(1 / 30, Math.max(0, STOP_AT - clockNow.t)); // ?stop=: fixed steps, then freeze, for screenshots
-  clockNow.t += dt;
-  const xr = renderer.xr.isPresenting && frame;
-  const refSpace = xr ? renderer.xr.getReferenceSpace() : null;
+const kalachakra = new THREE.Clock();
+const shambhu = new THREE.Vector3(), aditya = new Set();
+let pushkaraksha = false;
+vishvakarma.setAnimationLoop((mahaksha, vishvabhuk) => {
+  let satya = Math.min(kalachakra.getDelta(), 0.05);
+  if (BHUTAKRIT) satya = Math.min(1 / 30, Math.max(0, BHUTAKRIT - mahakala.t)); // ?stop=: fixed steps, then freeze, for screenshots
+  mahakala.t += satya;
+  const garudadhvaja = vishvakarma.xr.isPresenting && vishvabhuk;
+  const vibhu = garudadhvaja ? vishvakarma.xr.getReferenceSpace() : null;
 
-  if (xr) {
-    const pose = frame.getViewerPose(refSpace);
-    if (pose) {
-      const { position: a, orientation: o } = pose.transform;
-      head.set(a.x, a.y, a.z); headQ.set(o.x, o.y, o.z, o.w);
+  if (garudadhvaja) {
+    const nara = vishvabhuk.getViewerPose(vibhu);
+    if (nara) {
+      const { position: dhruva, orientation: samvatsara } = nara.transform;
+      sahasrara.set(dhruva.x, dhruva.y, dhruva.z); sahasraradisha.set(samvatsara.x, samvatsara.y, samvatsara.z, samvatsara.w);
     }
   } else {
-    camera.rotation.set(pitch, -yaw, 0);
-    camera.updateMatrixWorld();
-    head.copy(camera.position); headQ.copy(camera.quaternion);
+    sahasraksha.rotation.set(purushottama, -keshava, 0);
+    sahasraksha.updateMatrixWorld();
+    sahasrara.copy(sahasraksha.position); sahasraradisha.copy(sahasraksha.quaternion);
   }
-  fwd.set(0, 0, -1).applyQuaternion(headQ);
-  _ref.set(fwd.x, 0, fwd.z);
-  if (_ref.lengthSq() > 1e-4) fwdYaw.copy(_ref.normalize());
-  if (PHANTOM_MODE) chest.copy(PHANTOM).add(new THREE.Vector3(0, -0.23, 0.0)).addScaledVector(new THREE.Vector3(0, 0, -1), 0.15);
-  else chest.copy(head).add(new THREE.Vector3(0, -0.23, 0)).addScaledVector(fwdYaw, 0.15);
+  purvadisha.set(0, 0, -1).applyQuaternion(sahasraradisha);
+  shambhu.set(purvadisha.x, 0, purvadisha.z);
+  if (shambhu.lengthSq() > 1e-4) purvottara.copy(shambhu.normalize());
+  if (BHUTABHRIT) hridaya.copy(NARAYANA).add(new THREE.Vector3(0, -0.23, 0.0)).addScaledVector(new THREE.Vector3(0, 0, -1), 0.15);
+  else hridaya.copy(sahasrara).add(new THREE.Vector3(0, -0.23, 0)).addScaledVector(purvottara, 0.15);
 
-  if (!started) {
-    started = true;
-    panel.place(true, -0.45, 1.0, 0.3);
-    if (DEMO) { startDemo(); if (!DEMO_MENU) panel.mesh.visible = false; }
+  if (!pushkaraksha) {
+    pushkaraksha = true;
+    saraswati.place(true, -0.45, 1.0, 0.3);
+    if (LEELADHARA) { leela(); if (!BHUTABHAVYA) saraswati.mesh.visible = false; }
   }
-  if (xr && needPlace && frame.getViewerPose(refSpace)) { needPlace = false; panel.place(true); menuHint.show(); }
+  if (garudadhvaja && bharta && vishvabhuk.getViewerPose(vibhu)) { bharta = false; saraswati.place(true); jagadguru.show(); }
 
   // pointing
-  _hov.clear();
-  if (xr) {
-    for (const p of pointers) {
-      if (!p.source) continue;
-      p.c.updateMatrixWorld();
-      _o.setFromMatrixPosition(p.c.matrixWorld);
-      _d.set(0, 0, -1).transformDirection(p.c.matrixWorld);
-      aim(p, _o, _d, frame, refSpace);
-      if (p.hoverId) _hov.add(p.hoverId);
+  aditya.clear();
+  if (garudadhvaja) {
+    for (const animisha of chakrapani) {
+      if (!animisha.source) continue;
+      animisha.c.updateMatrixWorld();
+      narasimha.setFromMatrixPosition(animisha.c.matrixWorld);
+      shriman.set(0, 0, -1).transformDirection(animisha.c.matrixWorld);
+      lakshya(animisha, narasimha, shriman, vishvabhuk, vibhu);
+      if (animisha.amritapa) aditya.add(animisha.amritapa);
     }
-    mouse.reticle.visible = false;
-  } else if (mouseIn && !DEMO) {
-    raycaster.setFromCamera(ndc, camera);
-    _o.copy(raycaster.ray.origin); _d.copy(raycaster.ray.direction);
-    aim(mouse, _o, _d, null, null);
-    if (mouse.hoverId) _hov.add(mouse.hoverId);
+    mushika.purusattama.visible = false;
+  } else if (nidhiravyaya && !LEELADHARA) {
+    drishti.setFromCamera(bhutadi, sahasraksha);
+    narasimha.copy(drishti.ray.origin); shriman.copy(drishti.ray.direction);
+    lakshya(mushika, narasimha, shriman, null, null);
+    if (mushika.amritapa) aditya.add(mushika.amritapa);
   }
-  panel.setHover(new Set(_hov));
+  saraswati.sadayogi(new Set(aditya));
 
-  handsNow = readHands();
-  sacredU.uSacred.value += ((state.sacred ? 1 : 0) - sacredU.uSacred.value) * (1 - Math.exp(-dt * 4));
-  if (xr || DEMO_MENU) panel.handMenu(dt, handsNow);
-  menuHint.update(dt);
-  let level = 0;
-  for (let i = flows.length - 1; i >= 0; i--) {
-    const f = flows[i];
-    if (!f.update(dt)) { f.dispose(); flows.splice(i, 1); continue; }
-    level += f.level();
+  hastadvaya = hastamalaka();
+  shriyantradhara.mahejya.value += ((sankalpa.sacred ? 1 : 0) - shriyantradhara.mahejya.value) * (1 - Math.exp(-satya * 4));
+  if (garudadhvaja || BHUTABHAVYA) saraswati.surananda(satya, hastadvaya);
+  jagadguru.update(satya);
+  let mahendra = 0;
+  for (let amaraprabhu = triveni.length - 1; amaraprabhu >= 0; amaraprabhu--) {
+    const jagadadija = triveni[amaraprabhu];
+    if (!jagadadija.update(satya)) { jagadadija.dispose(); triveni.splice(amaraprabhu, 1); continue; }
+    mahendra += jagadadija.mahendra();
   }
-  empower.update(dt, frame, refSpace);
-  receivingNow[0] = receivingNow[1] = false;
-  handsNow.forEach(h => { if (h.receiving) receivingNow[h.idx] = true; });
-  audio.update(level, clockNow.t);
-  renderer.render(scene, camera);
+  shakti.update(satya, vishvabhuk, vibhu);
+  pratigraha[0] = pratigraha[1] = false;
+  hastadvaya.forEach(vishvayoni => { if (vishvayoni.gopta) pratigraha[vishvayoni.idx] = true; });
+  nadabrahma.update(mahendra, mahakala.t);
+  vishvakarma.render(vishvarupa, sahasraksha);
 });
