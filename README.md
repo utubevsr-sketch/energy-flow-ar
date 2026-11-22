@@ -27,6 +27,7 @@ Press buttons with your right hand: point the ray at a button and pinch, or poke
 - The qualities of the set, each with its colour, and **All of this set together** (a flow in all the set's colours).
 - **Receive into**: Auto (the default), Heart or Palms. See below.
 - **Intensity**: Gentle, Strong (the default) or Torrent.
+- **Sacred geometry**: On (the default) or Off.
 - **Clear flows**: fades out every flow.
 
 The hand menu needs hand tracking. With controllers only (or in the desktop preview) the menu stays fixed where it first appears. Your choices are saved for next time.
@@ -58,6 +59,25 @@ Quest hand tracking gives the joints of the hand and wrist, but not the forearm 
 
 **One colour for everything:** every layer is tinted in the selected quality's colour. That covers the torrent, vortex, beam, aura, lightning, sparks, hand glow, flare, shockwave and the pointing ray. Cores can go white-hot. "All of this set together" uses the set's colours on every layer. When you choose a different quality, flows that are already running change to the new colour over about a second. Dark colours (for example Restraint) are lifted, and pale ones (for example Divine Justice) get a stronger tint, so they still read clearly. Deep Connection with the Divine stays pure white.
 
+## Sacred geometry
+
+Thin, glowing linework sits alongside the effects, in the quality's colour. It never covers the torrent, and you can turn it off in the menu.
+
+- **At the source:** a Sri Yantra is etched into the vortex on the surface: nine interlocking triangles, the bindu, 8- and 16-petal lotuses, three circles and the bhupura square with its gates. It fades in as the vortex spins up and turns slowly anticlockwise as you see it.
+- **Along the torrent:** five rings, each a hexagram inside the Seed of Life, travel with the flow toward you. They are spaced by the golden ratio and spin anticlockwise with the torrent.
+- **Golden-ratio structure:** the vortex's three spiral arms are golden spirals (the radius grows by phi every quarter turn), and the particles start at golden-angle steps (137.5°, as in phyllotaxis).
+- **At the heart:** when the flow arrives, an Anahata mandala (a 12-petal lotus around a hexagram) blooms at the chest impact, facing you. It is kept faint and small this close to your eyes.
+- **On the palms:** a small Sri Yantra glows on each palm while it receives the flow.
+- **Crescendo:** Metatron's Cube over the Fruit of Life expands with the shockwave ring, turning the same way as the swirl around your body.
+
+Everything is drawn by the app itself when it starts. There are no image files.
+
+![Sacred geometry at the source](screenshots/sacred-source.png)
+
+## Spin direction
+
+The vortex on the surface, the spiral into it, the torrent, the rings and both palm streams all turn **anticlockwise as you look toward the source**. The swirl around your body keeps its own turn (clockwise seen from above), and the geometry around the body follows it. `?demo&cam=src&noroom` puts the preview camera where the energy lands, looking at the source, which is how the spin was checked.
+
 ## Sound
 
 There is a rumble and whoosh that follows how much energy is flowing, a rising tone when you cast, a chime when the energy reaches you, a deep whoosh on arrival and electric crackle with the lightning. Sound starts when you tap Enter AR.
@@ -78,7 +98,8 @@ For screenshots and checks:
 | `&recv=0..2` | Receive into Auto, Heart or Palms |
 | `&set=0..4&q=0..4` (`q=-1` is all together), `&i=0..2` | Quality and intensity for the demo |
 | `&stop=2.4` | Runs in fixed steps to that many seconds after the cast, then freezes (2 s is about when the energy arrives) |
-| `&hide=disk,sheath,haze,core,streaks,chest` | Turns flow layers off, for tuning |
+| `&hide=disk,sheath,haze,core,streaks,chest,yantra,rings` | Turns flow layers off, for tuning |
+| `&cam=src`, `&noroom` | Camera at the target looking at the source, and no stand-in room (used to check the spin) |
 
 Screenshots are in [`screenshots/`](screenshots/).
 

@@ -35,7 +35,7 @@ const INTENSITIES = [
 ];
 const MAX_FLOWS = 3; // guess: a new flow beyond this replaces the oldest
 
-const state = { set: 0, q: 0, intensity: 1, recv: 0 }; // q = -1 means all of the set together; recv: 0 Auto, 1 Heart, 2 Palms
+const state = { set: 0, q: 0, intensity: 1, recv: 0, sacred: true }; // q = -1 means all of the set together; recv: 0 Auto, 1 Heart, 2 Palms
 const RECEIVE = ['Auto', 'Heart', 'Palms'];
 try {
   const s = JSON.parse(localStorage.getItem('energy-flow') || '{}');
@@ -43,6 +43,7 @@ try {
   if (s.q >= -1 && s.q < QUALITY_SETS[state.set].length) state.q = s.q;
   if (s.intensity >= 0 && s.intensity < INTENSITIES.length) state.intensity = s.intensity;
   if (s.recv >= 0 && s.recv < RECEIVE.length) state.recv = s.recv;
+  if (typeof s.sacred === 'boolean') state.sacred = s.sacred;
 } catch (e) { /* only a convenience */ }
 const save = () => { try { localStorage.setItem('energy-flow', JSON.stringify(state)); } catch (e) { /* only a convenience */ } };
 const selectedQualities = () => (state.q < 0 ? QUALITY_SETS[state.set] : [QUALITY_SETS[state.set][state.q]]);
@@ -182,7 +183,7 @@ const streakGeos = (() => {
     const core = k < 0.28, mid = k >= 0.28 && k < 0.38;
     const rf = core ? Math.random() * 0.3 : mid ? 0.3 + Math.random() * 0.4 : 0.7 + Math.random() * 0.4;
     const spark = !core && Math.random() < 0.05;
-    aA.set([Math.random(), rf, Math.random() * TAU, (core ? 2.4 : 1.8) * (0.8 + 0.4 * Math.random())], i * 4);
+    aA.set([Math.random(), rf, (i * 2.39996323) % TAU, /* golden-angle start angles (phyllotaxis) */ (core ? 2.4 : 1.8) * (0.8 + 0.4 * Math.random())], i * 4);
     aB.set([Math.random(),
       core ? 0.011 + 0.007 * Math.random() : spark ? 0.004 : 0.005 + 0.005 * Math.random(),
       Math.random(),
@@ -337,7 +338,7 @@ function diskMat(u) {
       varying vec2 vXY;
       float pat(float th, float r, float ph){
         float a = th - ph;
-        float arms = pow(0.5 + 0.5 * cos(3. * a + 5. * log(r + 0.02)), 2.5);
+        float arms = pow(0.5 + 0.5 * cos(3. * a + 9.79 * log(r + 0.02)), 2.5); // three golden spirals (r grows by phi each quarter turn)
         float n = fbmP(vec2(a / TAU * 8., log(r + 0.02) * 3.), 8.);
         return arms * (0.35 + 1.2 * n) + 0.3 * n;
       }
@@ -421,6 +422,217 @@ function hazeMat(u) {
   });
 }
 
+// ---------- sacred geometry: luminous linework drawn once into canvas textures, tinted in the quality colour ----------
+const PHI = (1 + Math.sqrt(5)) / 2;
+const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5)); // 137.5°
+const sacredU = { uSacred: { value: state.sacred ? 1 : 0 } }; // fades the geometry in and out with the menu switch
+function lineTex(size, drawFn) {
+  const c = document.createElement('canvas'); c.width = c.height = size;
+  const x = c.getContext('2d');
+  x.translate(size / 2, size / 2); x.scale(size / 2, size / 2); // unit square: -1..1
+  x.strokeStyle = '#fff'; x.fillStyle = '#fff'; x.lineJoin = 'round'; x.lineCap = 'round';
+  drawFn(x, 2 / size);
+  const t = new THREE.CanvasTexture(c);
+  t.anisotropy = 4;
+  return t;
+}
+const circle = (x, r, cx = 0, cy = 0) => { x.beginPath(); x.arc(cx, cy, r, 0, TAU); x.stroke(); };
+const poly = (x, pts) => { x.beginPath(); pts.forEach(([a, b], i) => (i ? x.lineTo(a, b) : x.moveTo(a, b))); x.closePath(); x.stroke(); };
+const petals = (x, n, r0, r1, rot = 0) => {
+  const d = Math.PI / n;
+  for (let i = 0; i < n; i++) {
+    const a = rot + i * TAU / n;
+    x.beginPath();
+    x.moveTo(Math.cos(a - d) * r0, Math.sin(a - d) * r0);
+    x.quadraticCurveTo(Math.cos(a - d * 0.55) * r1 * 1.02, Math.sin(a - d * 0.55) * r1 * 1.02, Math.cos(a) * r1, Math.sin(a) * r1);
+    x.quadraticCurveTo(Math.cos(a + d * 0.55) * r1 * 1.02, Math.sin(a + d * 0.55) * r1 * 1.02, Math.cos(a + d) * r0, Math.sin(a + d) * r0);
+    x.stroke();
+  }
+};
+const hexagram = (x, r, rot = -Math.PI / 2) => {
+  for (const o of [0, Math.PI]) poly(x, [0, 1, 2].map(k => [Math.cos(rot + o + k * TAU / 3) * r, Math.sin(rot + o + k * TAU / 3) * r]));
+};
+// Sri Yantra: nine interlocking triangles (four pointing up, five down), bindu, 8- and 16-petal lotuses,
+// three circles and the bhupura square with its four gates.
+const sriYantraTex = lineTex(1024, (x, px) => {
+  const S = 1 / 2.05;
+  x.save(); x.scale(S, S);
+  x.lineWidth = px * 5 / S;
+  const tri = (yb, ya) => { // base at height yb, apex at ya (canvas y is down, so flip)
+    const hw = Math.min(Math.sqrt(Math.max(0, 1 - yb * yb)), Math.abs(ya - yb) * 0.62);
+    poly(x, [[-hw, -yb], [hw, -yb], [0, -ya]]);
+  };
+  [[0.68, -1.0], [0.45, -0.82], [0.29, -0.58], [0.10, -0.40], [-0.06, -0.20]].forEach(([b, a]) => tri(b, a)); // Shakti, pointing down
+  [[-0.62, 1.0], [-0.42, 0.76], [-0.24, 0.52], [-0.03, 0.30]].forEach(([b, a]) => tri(b, a)); // Shiva, pointing up
+  x.beginPath(); x.arc(0, 0.05, 0.035, 0, TAU); x.fill(); // bindu
+  circle(x, 1.04);
+  petals(x, 8, 1.04, 1.34, -Math.PI / 2);
+  circle(x, 1.36);
+  petals(x, 16, 1.36, 1.64, -Math.PI / 2);
+  x.lineWidth = px * 3.5 / S;
+  [1.67, 1.72, 1.77].forEach(r => circle(x, r));
+  x.lineWidth = px * 2.2 / S;
+  for (const s of [1.88, 1.95, 2.02]) { // bhupura with a gate in the middle of each side
+    const g = 0.32, t = 0.16;
+    x.beginPath();
+    for (let k = 0; k < 4; k++) {
+      x.save(); x.rotate(k * Math.PI / 2);
+      x.moveTo(-s, -s); x.lineTo(-g, -s); x.lineTo(-g, -s - t); x.moveTo(g, -s - t); x.lineTo(g, -s); x.lineTo(s, -s);
+      x.restore();
+    }
+    x.stroke();
+  }
+  x.restore();
+});
+// A ring for the torrent's cross-section: hexagram inside the Seed of Life, in a double circle.
+const ringTex = lineTex(512, (x, px) => {
+  x.lineWidth = px * 3;
+  circle(x, 0.95); circle(x, 0.9);
+  hexagram(x, 0.86);
+  const r = 0.3;
+  circle(x, r);
+  for (let k = 0; k < 6; k++) circle(x, r, Math.cos(k * TAU / 6) * r, Math.sin(k * TAU / 6) * r);
+});
+// Anahata, the heart chakra: a 12-petal lotus around a hexagram.
+const anahataTex = lineTex(512, (x, px) => {
+  x.lineWidth = px * 3.2;
+  petals(x, 12, 0.55, 0.95, -Math.PI / 2);
+  circle(x, 0.55); circle(x, 0.5);
+  hexagram(x, 0.47);
+  circle(x, 0.14);
+});
+// Metatron's Cube over the Fruit of Life: 13 circles, every centre joined to every other.
+const metatronTex = lineTex(1024, (x, px) => {
+  x.lineWidth = px * 3;
+  const r = 0.16, pts = [[0, 0]];
+  for (let k = 0; k < 6; k++) { const a = -Math.PI / 2 + k * TAU / 6; pts.push([Math.cos(a) * 2 * r, Math.sin(a) * 2 * r], [Math.cos(a) * 4 * r, Math.sin(a) * 4 * r]); }
+  pts.forEach(([a, b]) => circle(x, r, a, b));
+  x.beginPath();
+  for (let i = 0; i < pts.length; i++) for (let j = i + 1; j < pts.length; j++) { x.moveTo(...pts[i]); x.lineTo(...pts[j]); }
+  x.stroke();
+  circle(x, 4 * r + r);
+});
+
+// The glow of a line texture: the sharp line with a soft halo from a blurrier mip level, in the palette colour.
+const SACRED_FRAG = /* glsl */`
+  uniform sampler2D uTex; uniform vec3 uColors[5]; uniform float uNC;
+  varying vec2 vUv; varying float vA;
+  void main(){
+    float line = texture2D(uTex, vUv).a;
+    float halo = texture2D(uTex, vUv, 3.5).a;
+    vec2 d = vUv - 0.5;
+    float k = fract(length(d) * 2.2 + atan(d.y, d.x) / 6.2831853);
+    int i = int(floor(k * uNC)); vec3 base = uColors[clamp(i, 0, 4)];
+    vec3 col = mix(base * 1.5, vec3(1.), 0.35 * line);
+    float a = (line * 0.9 + halo * 1.3) * vA;
+    gl_FragColor = vec4(col * a, a * 0.3);
+  }`;
+
+// Per flow: the Sri Yantra etched into the source vortex, and golden-ratio rings travelling down the torrent.
+function yantraMat(u) {
+  return new THREE.ShaderMaterial({
+    uniforms: { ...u, uTex: { value: sriYantraTex }, uSacred: sacredU.uSacred }, ...GLOW_BLEND, side: THREE.DoubleSide,
+    vertexShader: FLOW + /* glsl */`
+      uniform float uSacred; varying vec2 vUv; varying float vA;
+      void main(){
+        float ang = uAge * 0.12; // turns slowly anticlockwise as you see it
+        vec2 q = vec2(position.x * cos(ang) - position.y * sin(ang), position.x * sin(ang) + position.y * cos(ang));
+        vec3 P = uS + uN * 0.01 + (uE1 * q.x + uE2 * q.y) * uRdisk * 0.78;
+        vUv = position.xy * 0.5 + 0.5;
+        vA = uSpin * uSpin * uFade * uSacred * uGain * 0.55;
+        gl_Position = projectionMatrix * viewMatrix * vec4(P, 1.);
+      }`,
+    fragmentShader: SACRED_FRAG,
+  });
+}
+const ringGeo = (() => {
+  const g = new THREE.InstancedBufferGeometry();
+  g.setIndex(planeGeo.index); g.setAttribute('position', planeGeo.attributes.position);
+  const k = new Float32Array(5);
+  for (let i = 0; i < 5; i++) k[i] = (i / PHI) % 1; // spaced by the golden ratio
+  g.setAttribute('aK', new THREE.InstancedBufferAttribute(k, 1));
+  g.instanceCount = 5;
+  return g;
+})();
+function ringMat(u) {
+  return new THREE.ShaderMaterial({
+    uniforms: { ...u, uTex: { value: ringTex }, uSacred: sacredU.uSacred }, ...GLOW_BLEND, side: THREE.DoubleSide,
+    vertexShader: FLOW + /* glsl */`
+      attribute float aK; uniform float uSacred; varying vec2 vUv; varying float vA;
+      void main(){
+        float w = fract(aK + uAge * 0.1 * uSpeed);
+        float R = funnelR(w) * 1.15 + 0.03;
+        vec3 T = bezT(w), B2 = normalize(cross(T, uPN));
+        float ang = uAge * 0.8 + aK * 6.2831853; // anticlockwise as you see it, like the torrent
+        vec2 q = vec2(position.x * cos(ang) - position.y * sin(ang), position.x * sin(ang) + position.y * cos(ang));
+        vec3 P = bez(w) + (uPN * q.x + B2 * q.y) * R;
+        vUv = position.xy * 0.5 + 0.5;
+        float near = smoothstep(0.5, 1.4, distance(bez(w), cameraPosition));
+        vA = (1. - smoothstep(uReveal - 0.05, uReveal, w)) * smoothstep(0.04, 0.14, w) * (1. - smoothstep(0.62, 0.8, w))
+           * near * uFade * uSacred * uGain * 0.55;
+        gl_Position = projectionMatrix * viewMatrix * vec4(P, 1.);
+      }`,
+    fragmentShader: SACRED_FRAG,
+  });
+}
+// Around you: Anahata at the heart, a small Sri Yantra on each receiving palm, Metatron's Cube with the shockwave.
+function plainSacredMat(tex) {
+  return new THREE.ShaderMaterial({
+    uniforms: { uTex: { value: tex }, uColors: { value: palette() }, uNC: { value: 5 }, uAlpha: { value: 0 }, uBill: { value: 0 }, uSize: { value: 1 }, uRot: { value: 0 } },
+    ...GLOW_BLEND, side: THREE.DoubleSide,
+    vertexShader: /* glsl */`
+      uniform float uAlpha, uBill, uSize, uRot; varying vec2 vUv; varying float vA;
+      void main(){
+        vec2 q = vec2(position.x * cos(uRot) - position.y * sin(uRot), position.x * sin(uRot) + position.y * cos(uRot)) * uSize;
+        vUv = position.xy * 0.5 + 0.5; vA = uAlpha;
+        if (uBill > 0.5) { vec4 mv = viewMatrix * vec4(modelMatrix[3].xyz, 1.); mv.xy += q; gl_Position = projectionMatrix * mv; }
+        else gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(q, 0., 1.);
+      }`,
+    fragmentShader: SACRED_FRAG,
+  });
+}
+const sacredAround = (() => {
+  const mk = (tex) => { const m = new THREE.Mesh(planeGeo, plainSacredMat(tex)); m.frustumCulled = false; m.visible = false; scene.add(m); return m; };
+  const anahata = mk(anahataTex); anahata.material.uniforms.uBill.value = 1;
+  const palms = [mk(sriYantraTex), mk(sriYantraTex)];
+  const metatron = mk(metatronTex);
+  const z = new THREE.Vector3(0, 0, 1);
+  return {
+    update(dt, E, t, heartOn, hands, cols, chestPos, bodyPos) {
+      const S = sacredU.uSacred.value;
+      [anahata, ...palms, metatron].forEach(m => m.material.uniforms.uColors.value.forEach((c, i) => c.copy(cols[i])));
+      // Anahata blooms at the heart impact, facing you; kept faint and small this close to your eyes
+      const near = smooth(0.3, 0.9, chestPos.distanceTo(PHANTOM_MODE && params.get('cam') !== 'src' ? camera.position : head));
+      const au = anahata.material.uniforms;
+      au.uAlpha.value = E * heartOn * S * 0.8 * (0.3 + 0.7 * near);
+      au.uSize.value = 0.2 * (0.5 + 0.5 * smooth(0, 0.9, t)) * (0.5 + 0.5 * near);
+      au.uRot.value = -clockNow.t * 0.15; // follows the body swirl's turn
+      anahata.position.copy(chestPos); anahata.visible = au.uAlpha.value > 0.003;
+      // palms
+      palms.forEach((m, i) => {
+        const h = hands.find(hh => hh.idx === i);
+        const mu = m.material.uniforms;
+        mu.uAlpha.value = h && h.receiving ? E * S * 0.7 : 0;
+        m.visible = mu.uAlpha.value > 0.003;
+        if (!m.visible) return;
+        m.position.copy(h.palm).addScaledVector(h.normal, 0.012);
+        m.quaternion.setFromUnitVectors(z, h.normal);
+        mu.uSize.value = 0.06; mu.uRot.value = -clockNow.t * 0.6; // anticlockwise as you see the stream arrive
+      });
+      // Metatron's Cube expands with the crescendo's shockwave, flat at chest height, turning with the body swirl
+      const k = Math.min(1, t / 1.8), mu = metatron.material.uniforms;
+      mu.uAlpha.value = t < 1.8 ? E * S * Math.pow(1 - k, 1.2) * 0.6 : 0;
+      metatron.visible = mu.uAlpha.value > 0.003;
+      if (metatron.visible) {
+        metatron.position.set(bodyPos.x, chestPos.y - 0.15, bodyPos.z);
+        metatron.rotation.set(-Math.PI / 2, 0, 0);
+        mu.uSize.value = (1 - Math.pow(1 - k, 2)) * 4.5 / 0.8 + 0.1; // its outer circle rides the ring
+        mu.uRot.value = -clockNow.t * 0.3; // clockwise seen from above once laid flat, like the body swirl
+      }
+    },
+  };
+})();
+
 // ---------- one energy flow ----------
 const clockNow = { t: 0 };
 class Flow {
@@ -460,10 +672,12 @@ class Flow {
       mk(streakGeos[intensity], streakMat(this.u)),
       mk(planeGeo, chestMat(this.u, 'uPA')),
       mk(planeGeo, chestMat(this.u, 'uPB')),
+      mk(planeGeo, yantraMat(this.u)),
+      mk(ringGeo, ringMat(this.u)),
     ];
-    // ?hide=disk,sheath,haze,core,streaks,chest turns layers off, for tuning
+    // ?hide=disk,sheath,haze,core,streaks,chest,yantra,rings turns layers off, for tuning
     const hide = (params.get('hide') || '').split(',');
-    ['disk', 'sheath', 'haze', 'core', 'streaks', 'chest', 'chest'].forEach((k, i) => { if (hide.includes(k)) this.meshes[i].visible = false; });
+    ['disk', 'sheath', 'haze', 'core', 'streaks', 'chest', 'chest', 'yantra', 'rings'].forEach((k, i) => { if (hide.includes(k)) this.meshes[i].visible = false; });
   }
   bez(w, out) {
     const { uS, uC, uD } = this.u, a = 1 - w;
@@ -475,6 +689,7 @@ class Flow {
     let recv = [];
     if (state.recv !== 1) recv = handsNow.filter(h => state.recv === 2 || (h.open && _tv.subVectors(S, h.palm).normalize().dot(h.normal) > 0.5));
     recv.forEach(h => { h.receiving = true; });
+    this.recvCount = recv.length;
     const A = recv.length ? recv[0].palm.clone().addScaledVector(recv[0].normal, 0.03) : chest.clone();
     const B = recv.length > 1 ? recv[1].palm.clone().addScaledVector(recv[1].normal, 0.03) : A.clone();
     if (dt === undefined) { u.uPA.value.copy(A); u.uPB.value.copy(B); }
@@ -556,11 +771,11 @@ const roomMeshes = [roomBox, sofa, table];
 
 // ---------- the 3D menu panel ----------
 const panel = (() => {
-  const W = 1024, H = 868;
+  const W = 1024, H = 958;
   const canvas = document.createElement('canvas'); canvas.width = W; canvas.height = H;
   const ctx = canvas.getContext('2d');
   const tex = new THREE.CanvasTexture(canvas); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
-  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.424), new THREE.MeshBasicMaterial({ map: tex, transparent: true, toneMapped: false }));
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.468), new THREE.MeshBasicMaterial({ map: tex, transparent: true, toneMapped: false }));
   mesh.renderOrder = 10;
   scene.add(mesh);
 
@@ -627,9 +842,9 @@ const panel = (() => {
     });
     // receive into, and intensity
     const iw = (W - 24 - 230 - 2 * 12) / 3;
-    [['Receive into', 'recv', RECEIVE, state.recv, 586], ['Intensity', 'int', INTENSITIES.map(it => it.label), state.intensity, 676]].forEach(([title, key, labels, cur, y]) => {
+    [['Receive into', 'recv', RECEIVE, state.recv, 586], ['Intensity', 'int', INTENSITIES.map(it => it.label), state.intensity, 676], ['Sacred geometry', 'sac', ['On', 'Off'], state.sacred ? 0 : 1, 766]].forEach(([title, key, labels, cur, y]) => {
       ctx.fillStyle = '#cbb48a'; ctx.font = '600 28px system-ui, sans-serif'; ctx.textAlign = 'left';
-      ctx.fillText(title, 28, y + 30);
+      ctx.font = `600 ${title.length > 12 ? 24 : 28}px system-ui, sans-serif`; ctx.fillText(title, 28, y + 30);
       labels.forEach((label, i) => {
         const x = 230 + i * (iw + 12);
         const fg = button(key + ':' + i, x, y, iw, 60, cur === i);
@@ -638,9 +853,9 @@ const panel = (() => {
       });
     });
     {
-      const fg = button('clear', 24, 754, W - 48, 86, false);
+      const fg = button('clear', 24, 856, W - 48, 86, false);
       ctx.fillStyle = fg; ctx.font = 'bold 30px system-ui, sans-serif'; ctx.textAlign = 'center';
-      ctx.fillText('Clear flows', W / 2, 798);
+      ctx.fillText('Clear flows', W / 2, 900);
     }
     tex.needsUpdate = true;
   }
@@ -658,6 +873,7 @@ const panel = (() => {
     else if (k === 'q') state.q = v === 'all' ? -1 : +v;
     else if (k === 'int') state.intensity = +v;
     else if (k === 'recv') state.recv = +v;
+    else if (k === 'sac') state.sacred = v === '0';
     else if (k === 'clear') clearFlows();
     if (k === 'set' || k === 'q') { const p = palette(); flows.forEach(f => { f.target = p.map(c => c.clone()); }); }
     save(); audio.click(); draw();
@@ -710,8 +926,8 @@ const panel = (() => {
     if (mesh.visible && right && right.indexTip) {
       mesh.updateMatrixWorld();
       const local = mesh.worldToLocal(_p.copy(right.indexTip));
-      const inside = Math.abs(local.x) < 0.25 && Math.abs(local.y) < 0.212;
-      if (inside && Math.abs(local.z) < 0.012 && !poked) { poked = true; press(idAt({ x: local.x / 0.5 + 0.5, y: local.y / 0.424 + 0.5 })); }
+      const inside = Math.abs(local.x) < 0.25 && Math.abs(local.y) < 0.234;
+      if (inside && Math.abs(local.z) < 0.012 && !poked) { poked = true; press(idAt({ x: local.x / 0.5 + 0.5, y: local.y / 0.468 + 0.5 })); }
       if (!inside || local.z > 0.025) poked = false;
     }
   }
@@ -1470,6 +1686,8 @@ const empower = (() => {
       eu.uE.value = E; eu.uT.value = t; eu.uBurst.value = burst; eu.uTime.value = clockNow.t;
       empowerGroup.visible = E > 0.005;
       flare.visible = E > 0.005 && !!flow;
+      const heartOn = flows.some(f => f.arrived && !f.dying && !f.recvCount) ? 1 : 0;
+      sacredAround.update(dt, E, t, heartOn, handsNow, eu.uColors.value, chest, eu.uBody.value);
       if (!empowerGroup.visible) { bolts.begin(); bolts.end(); return; }
       if (flow) {
         const ff = flow.u;
@@ -1566,6 +1784,7 @@ renderer.setAnimationLoop((ts, frame) => {
   panel.setHover(new Set(_hov));
 
   handsNow = readHands();
+  sacredU.uSacred.value += ((state.sacred ? 1 : 0) - sacredU.uSacred.value) * (1 - Math.exp(-dt * 4));
   if (xr || DEMO_MENU) panel.handMenu(dt, handsNow);
   menuHint.update(dt);
   let level = 0;
